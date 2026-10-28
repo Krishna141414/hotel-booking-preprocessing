@@ -73,6 +73,33 @@ MAX_PLAUSIBLE_COUNTS: dict[str, int] = {
 ADR_CAP_QUANTILE: float = 0.999
 
 # ---------------------------------------------------------------------------
+# Feature engineering (reasoning in docs/decisions.md, section 3)
+# ---------------------------------------------------------------------------
+# Both hotels are in Portugal, so PRT = domestic guest.
+DOMESTIC_COUNTRY: str = "PRT"
+
+# Meteorological seasons (northern hemisphere), keyed by month number.
+SEASON_BY_MONTH: dict[int, str] = {
+    12: "Winter", 1: "Winter", 2: "Winter",
+    3: "Spring", 4: "Spring", 5: "Spring",
+    6: "Summer", 7: "Summer", 8: "Summer",
+    9: "Autumn", 10: "Autumn", 11: "Autumn",
+}  # fmt: skip
+
+ENGINEERED_FEATURES: list[str] = [
+    "total_nights",
+    "total_guests",
+    "has_children",
+    "adr_per_person",
+    "stay_value",
+    "arrival_month_num",
+    "arrival_weekday",
+    "arrival_season",
+    "is_domestic",
+    "previous_cancel_ratio",
+]
+
+# ---------------------------------------------------------------------------
 # Reproducibility
 # ---------------------------------------------------------------------------
 RANDOM_STATE: int = 42

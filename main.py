@@ -5,6 +5,7 @@ import logging
 from src import config
 from src.cleaning import before_after_summary, clean_data, save_clean_data
 from src.download_data import ensure_raw_data
+from src.features import engineer_features
 from src.load_data import load_raw_data, log_data_overview
 
 logger = logging.getLogger("main")
@@ -26,6 +27,9 @@ def main() -> None:
     logger.info("Cleaning steps:\n%s", step_report.to_string())
     logger.info("Before vs after:\n%s", before_after_summary(raw_df, clean_df).to_string())
     save_clean_data(clean_df)
+
+    logger.info("=== Step 3: Feature engineering ===")
+    engineer_features(clean_df)
 
     logger.info("Pipeline finished")
 

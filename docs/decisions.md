@@ -139,3 +139,51 @@ fixes -> outlier capping. Rule values live in `src/config.py`.
 ### 2.12 Validation
 - `clean_data` checks all required columns exist before running, and raises an error if
   any missing value survives cleaning.
+
+## 3. Feature engineering (`src/features.py`)
+
+All new features are computed **within a single row** (no averages or counts over the
+dataset), so creating them before the train/test split cannot leak test information.
+
+| Feature | Formula | Why it helps | Quick check (cancel rate) |
+|---|---|---|---|
+| `total_nights` | weekend + week nights | Stay length in one number | 0-night day-use stays: 3.9% |
+| `total_guests` | adults + children + babies | Party size | - |
+| `has_children` | children + babies > 0 | Families plan differently | 34.3% vs 26.7% |
+| `adr_per_person` | adr / (adults + children) | Price comparable across party sizes | - |
+| `stay_value` | adr x total_nights | Total money at stake | - |
+| `arrival_month_num` | month name -> 1-12 | Numeric month for seasonality | - |
+| `arrival_weekday` | from the rebuilt arrival date (0 = Mon) | Weekend vs weekday trips | Fri 30.6% vs Tue 24.3% |
+| `arrival_season` | month -> Winter/Spring/Summer/Autumn | Coarser, robust seasonality | Summer 31.6% vs Autumn 23.3% |
+| `is_domestic` | country == "PRT" | Both hotels are in Portugal | 35.7% vs 23.8% |
+| `previous_cancel_ratio` | prev. cancels / prev. bookings (0 if none) | Guest's own track record | 68.0% when > 0 |
+
+### 3.1 `adr_per_person` divides by adults + children, not total guests
+- **Why:** Babies usually stay free, so including them would understate the real
+  per-person price. Cleaning guarantees adults + children > 0; the function still
+  raises a clear error if that is ever violated (e.g. a bad uploaded file).
+- **Alternative considered:** Divide by `total_guests`. Simpler, but mixes in free guests.
+
+### 3.2 `previous_cancel_ratio` instead of a raw "has cancelled before" flag
+- **Why:** 1 cancellation out of 1 booking and 1 out of 20 are very different guests.
+  The ratio keeps that difference; guests with no history get 0.
+- **Alternative considered:** Binary flag `previous_cancellations > 0`. Loses the scale.
+
+### 3.3 Arrival date rebuilt as a real date
+- **Why:** The raw date is split over 4 columns with the month as text. Rebuilding a real
+  date gives the weekday (not in the raw data) and validates the date (an impossible date
+  such as 31 February raises an error).
+- **Alternative considered:** Cyclical sin/cos encoding of month. Better for some linear
+  models, but harder to read and explain; month number + season is kept simple.
+
+### 3.4 Feature considered and rejected: `room_type_changed`
+- **Idea:** reserved room type != assigned room type.
+- **Rejected (leakage):** Rooms are reassigned at check-in, which canceled bookings never
+  reach. Changed-room bookings cancel only 4.7% vs 31.5% otherwise - the feature mostly
+  encodes "this guest actually showed up". For the same reason `assigned_room_type` itself
+  is dropped in feature selection.
+
+### 3.5 Original columns are kept at this stage
+- **Why:** Feature engineering only *adds* columns. Deciding which originals become
+  redundant (e.g. `arrival_date_week_number` vs `arrival_month_num`) is done with evidence
+  in feature selection (section 6), not assumed here.
