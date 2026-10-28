@@ -100,17 +100,18 @@ def test_standardize_meal(bookings: pd.DataFrame) -> None:
 
 
 def test_cap_adr_limits_extreme_values() -> None:
-    """Values above the quantile are capped; values below are untouched."""
+    """Values above the quantile cap are capped; values below are untouched."""
     df = pd.DataFrame({"adr": [float(v) for v in range(1, 101)] + [5400.0]})
-    result = cleaning.cap_adr(df, quantile=0.99)
-    assert result["adr"].max() < 5400.0
+    cap = cleaning.compute_adr_cap(df, quantile=0.99)
+    result = cleaning.cap_adr(df, cap)
+    assert result["adr"].max() == cap < 5400.0
     assert result["adr"].iloc[0] == 1.0
 
 
-def test_cap_adr_rejects_bad_quantile() -> None:
+def test_compute_adr_cap_rejects_bad_quantile() -> None:
     """Quantiles outside (0, 1] raise a ValueError."""
     with pytest.raises(ValueError, match="quantile"):
-        cleaning.cap_adr(pd.DataFrame({"adr": [1.0]}), quantile=1.5)
+        cleaning.compute_adr_cap(pd.DataFrame({"adr": [1.0]}), quantile=1.5)
 
 
 def test_check_no_missing_raises() -> None:
@@ -127,7 +128,7 @@ def test_validate_columns_raises() -> None:
 
 def test_clean_data_end_to_end(bookings: pd.DataFrame) -> None:
     """The full run removes invalid rows and duplicates and leaves no nulls."""
-    cleaned, report = cleaning.clean_data(bookings)
+    cleaned, report, _ = cleaning.clean_data(bookings)
     # Rows 1 (duplicate), 2 (zero guests), 3 (negative ADR), 4 (55 adults) go.
     assert len(cleaned) == 2
     assert cleaned.isna().sum().sum() == 0
@@ -135,12 +136,28 @@ def test_clean_data_end_to_end(bookings: pd.DataFrame) -> None:
     assert "company" not in cleaned.columns
     assert "reservation_status" in cleaned.columns  # kept until Stage 6
     assert report["rows_removed"].sum() == 4
-    assert list(report.index) == [name for name, _ in cleaning.CLEANING_STEPS]
+    expected_steps = [name for name, _ in cleaning.CLEANING_STEPS] + [cleaning.CAP_STEP_NAME]
+    assert list(report.index) == expected_steps
+
+
+def test_clean_data_reuses_a_fixed_adr_cap(bookings: pd.DataFrame) -> None:
+    """New data is capped with the reference cap, not one computed from itself."""
+    result = cleaning.clean_data(bookings, adr_cap=150.0)
+    assert result.adr_cap == 150.0
+    assert result.data["adr"].max() == 150.0
+
+
+def test_clean_data_without_target_column(bookings: pd.DataFrame) -> None:
+    """Uploaded files may lack the target; cleaning and the summary still work."""
+    unlabeled = bookings.drop(columns="is_canceled")
+    cleaned = cleaning.clean_data(unlabeled).data
+    summary = cleaning.before_after_summary(unlabeled, cleaned)
+    assert "cancellation_rate_pct" not in summary.index
 
 
 def test_before_after_summary(bookings: pd.DataFrame) -> None:
     """The summary shows the dropped company column and zero missing after."""
-    cleaned, _ = cleaning.clean_data(bookings)
+    cleaned = cleaning.clean_data(bookings).data
     summary = cleaning.before_after_summary(bookings, cleaned)
     assert summary.loc["rows", "before"] == 6
     assert summary.loc["rows", "after"] == 2

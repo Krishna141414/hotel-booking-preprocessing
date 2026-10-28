@@ -129,3 +129,69 @@ def setup_logging(level: int = logging.INFO) -> None:
         level: Minimum log level to display.
     """
     logging.basicConfig(level=level, format=LOG_FORMAT, datefmt=LOG_DATE_FORMAT, force=True)
+
+
+# ---------------------------------------------------------------------------
+# Encoding + scaling (reasoning in docs/decisions.md, section 5)
+# ---------------------------------------------------------------------------
+PREPROCESSOR_PATH: Path = MODELS_DIR / "preprocessor.joblib"
+METADATA_PATH: Path = MODELS_DIR / "preprocessing_metadata.json"
+TRAIN_PROCESSED_PATH: Path = PROCESSED_DATA_DIR / "train_processed.csv"
+TEST_PROCESSED_PATH: Path = PROCESSED_DATA_DIR / "test_processed.csv"
+
+TEST_SIZE: float = 0.2
+# One-hot categories seen in < 1% of training rows are merged into "infrequent".
+MIN_CATEGORY_FREQUENCY: float = 0.01
+# log1p is applied when a column's skew is above this ...
+LOG_SKEW_THRESHOLD: float = 1.0
+# ... and log1p shrinks |skew| to at most this fraction of the original.
+LOG_SKEW_MAX_RATIO: float = 0.5
+
+# Candidate model inputs, before feature selection. The hard-leakage columns
+# (reservation_status*) are never candidates.
+NUMERIC_FEATURES: list[str] = [
+    "lead_time",
+    "stays_in_weekend_nights",
+    "stays_in_week_nights",
+    "total_nights",
+    "adults",
+    "children",
+    "babies",
+    "total_guests",
+    "adr",
+    "adr_per_person",
+    "stay_value",
+    "previous_cancellations",
+    "previous_bookings_not_canceled",
+    "previous_cancel_ratio",
+    "booking_changes",
+    "days_in_waiting_list",
+    "required_car_parking_spaces",
+    "total_of_special_requests",
+    "arrival_date_year",
+    "arrival_date_week_number",
+    "arrival_date_day_of_month",
+    "arrival_month_num",
+    "arrival_weekday",
+]
+BINARY_FEATURES: list[str] = [
+    "is_repeated_guest",
+    "has_company",
+    "has_agent",
+    "has_children",
+    "is_domestic",
+]
+CATEGORICAL_FEATURES: list[str] = [
+    "hotel",
+    "meal",
+    "market_segment",
+    "distribution_channel",
+    "reserved_room_type",
+    "assigned_room_type",
+    "deposit_type",
+    "customer_type",
+    "arrival_date_month",
+    "arrival_season",
+    "country",
+    "agent",
+]

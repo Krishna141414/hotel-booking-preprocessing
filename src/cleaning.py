@@ -8,6 +8,7 @@ a per-step report. The reasoning behind each rule is in ``docs/decisions.md``.
 import logging
 from collections.abc import Callable
 from pathlib import Path
+from typing import NamedTuple
 
 import pandas as pd
 
@@ -206,29 +207,37 @@ def standardize_meal(df: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # Outliers
 # ---------------------------------------------------------------------------
-def cap_adr(df: pd.DataFrame, quantile: float = config.ADR_CAP_QUANTILE) -> pd.DataFrame:
-    """Cap (winsorise) ADR values above the given quantile.
+def compute_adr_cap(df: pd.DataFrame, quantile: float = config.ADR_CAP_QUANTILE) -> float:
+    """Return the ADR value at the given upper quantile.
 
     Args:
         df: Bookings DataFrame.
-        quantile: Upper quantile used as the cap, between 0 and 1.
+        quantile: Upper quantile between 0 and 1.
 
     Returns:
-        DataFrame with capped ``adr``.
+        The cap value.
 
     Raises:
         ValueError: If ``quantile`` is outside (0, 1].
     """
     if not 0 < quantile <= 1:
         raise ValueError(f"quantile must be in (0, 1], got {quantile}")
-    cap = float(df["adr"].quantile(quantile))
+    return float(df["adr"].quantile(quantile))
+
+
+def cap_adr(df: pd.DataFrame, cap: float) -> pd.DataFrame:
+    """Cap (winsorise) ADR values above ``cap``.
+
+    Args:
+        df: Bookings DataFrame.
+        cap: Highest allowed ADR; larger values are set to this value.
+
+    Returns:
+        DataFrame with capped ``adr``.
+    """
     above = df["adr"] > cap
     logger.info(
-        "ADR capped at %.2f (%.1fth percentile): %s rows, old max %.2f",
-        cap,
-        quantile * 100,
-        f"{above.sum():,}",
-        df["adr"].max(),
+        "ADR capped at %.2f: %s rows, old max %.2f", cap, f"{above.sum():,}", df["adr"].max()
     )
     return df.assign(adr=df["adr"].clip(upper=cap))
 
@@ -295,19 +304,53 @@ CLEANING_STEPS: list[tuple[str, CleaningStep]] = [
     ("Fill country 'Unknown'", fill_country),
     ("Fill children 0", fill_children),
     ("meal Undefined -> SC", standardize_meal),
-    ("Cap extreme ADR", cap_adr),
 ]
+CAP_STEP_NAME: str = "Cap extreme ADR"
 
 
-def clean_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+class CleaningResult(NamedTuple):
+    """Output of :func:`clean_data`."""
+
+    data: pd.DataFrame
+    report: pd.DataFrame
+    adr_cap: float
+
+
+def _report_row(name: str, before: pd.DataFrame, after: pd.DataFrame) -> dict[str, object]:
+    """Describe what one cleaning step changed.
+
+    Args:
+        name: Step name.
+        before: Frame before the step.
+        after: Frame after the step.
+
+    Returns:
+        One row of the step report.
+    """
+    added = sorted(set(after.columns) - set(before.columns))
+    removed = sorted(set(before.columns) - set(after.columns))
+    return {
+        "step": name,
+        "rows_before": len(before),
+        "rows_after": len(after),
+        "rows_removed": len(before) - len(after),
+        "values_changed": _count_changed_values(before, after),
+        "columns": ", ".join([f"+{c}" for c in added] + [f"-{c}" for c in removed]),
+    }
+
+
+def clean_data(df: pd.DataFrame, adr_cap: float | None = None) -> CleaningResult:
     """Run every cleaning step in order and record what each one changed.
 
     Args:
         df: Raw bookings DataFrame (as returned by ``load_raw_data``).
+        adr_cap: Fixed ADR cap to apply. ``None`` computes it from this data
+            (``config.ADR_CAP_QUANTILE``); pass the reference cap when cleaning
+            *new* data so it is treated exactly like the original dataset.
 
     Returns:
-        A tuple ``(cleaned_df, step_report)``. The report has one row per step
-        with rows before/after, rows removed, values changed and column changes.
+        ``CleaningResult(data, report, adr_cap)``. The report has one row per
+        step with rows before/after, rows removed, values changed and column changes.
 
     Raises:
         ValueError: If required columns are missing or nulls remain at the end.
@@ -318,19 +361,14 @@ def clean_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     for name, step in CLEANING_STEPS:
         logger.info("-> %s", name)
         result = step(current)
-        added = sorted(set(result.columns) - set(current.columns))
-        removed = sorted(set(current.columns) - set(result.columns))
-        report_rows.append(
-            {
-                "step": name,
-                "rows_before": len(current),
-                "rows_after": len(result),
-                "rows_removed": len(current) - len(result),
-                "values_changed": _count_changed_values(current, result),
-                "columns": ", ".join([f"+{c}" for c in added] + [f"-{c}" for c in removed]),
-            }
-        )
+        report_rows.append(_report_row(name, current, result))
         current = result
+
+    logger.info("-> %s", CAP_STEP_NAME)
+    cap = compute_adr_cap(current) if adr_cap is None else adr_cap
+    result = cap_adr(current, cap)
+    report_rows.append(_report_row(CAP_STEP_NAME, current, result))
+    current = result
 
     check_no_missing(current)
     flag_leakage_columns(current)
@@ -340,9 +378,9 @@ def clean_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         f"{len(df):,}",
         f"{len(cleaned):,}",
         f"{len(df) - len(cleaned):,}",
-        (len(df) - len(cleaned)) / len(df) * 100,
+        (len(df) - len(cleaned)) / max(len(df), 1) * 100,
     )
-    return cleaned, pd.DataFrame(report_rows).set_index("step")
+    return CleaningResult(cleaned, pd.DataFrame(report_rows).set_index("step"), cap)
 
 
 def before_after_summary(raw: pd.DataFrame, clean: pd.DataFrame) -> pd.DataFrame:
@@ -365,10 +403,11 @@ def before_after_summary(raw: pd.DataFrame, clean: pd.DataFrame) -> pd.DataFrame
         table[f"missing: {column}"] = (int(raw[column].isna().sum()), after_missing)
 
     table["total missing cells"] = (int(raw.isna().sum().sum()), int(clean.isna().sum().sum()))
-    table["cancellation_rate_pct"] = (
-        before["cancellation_rate_pct"],
-        after["cancellation_rate_pct"],
-    )
+    if "cancellation_rate_pct" in before and "cancellation_rate_pct" in after:
+        table["cancellation_rate_pct"] = (
+            before["cancellation_rate_pct"],
+            after["cancellation_rate_pct"],
+        )
     # object dtype keeps counts as ints instead of upcasting everything to float.
     return pd.DataFrame.from_dict(table, orient="index", columns=["before", "after"], dtype=object)
 

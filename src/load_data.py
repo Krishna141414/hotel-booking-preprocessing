@@ -76,18 +76,20 @@ def data_quality_snapshot(df: pd.DataFrame) -> dict[str, float]:
         df: Raw bookings DataFrame.
 
     Returns:
-        Mapping of issue name to count (or value for ``adr_max``).
+        Mapping of issue name to count (or value for ``adr_max``). The
+        cancellation rate is included only when the target column is present
+        (uploaded files may not have it).
 
     Raises:
         ValueError: If a required column is missing.
     """
-    required = [*config.GUEST_COLUMNS, "adr", config.TARGET]
+    required = [*config.GUEST_COLUMNS, "adr"]
     missing_columns = [col for col in required if col not in df.columns]
     if missing_columns:
         raise ValueError(f"Missing required columns: {missing_columns}")
 
     total_guests = df[config.GUEST_COLUMNS].sum(axis=1, min_count=1)
-    return {
+    snapshot: dict[str, float] = {
         "rows": len(df),
         "duplicate_rows": int(df.duplicated().sum()),
         "rows_with_any_missing": int(df.isna().any(axis=1).sum()),
@@ -95,8 +97,10 @@ def data_quality_snapshot(df: pd.DataFrame) -> dict[str, float]:
         "negative_adr": int((df["adr"] < 0).sum()),
         "zero_adr": int((df["adr"] == 0).sum()),
         "adr_max": float(df["adr"].max()),
-        "cancellation_rate_pct": round(float(df[config.TARGET].mean() * 100), 2),
     }
+    if config.TARGET in df.columns:
+        snapshot["cancellation_rate_pct"] = round(float(df[config.TARGET].mean() * 100), 2)
+    return snapshot
 
 
 def log_data_overview(df: pd.DataFrame) -> None:
