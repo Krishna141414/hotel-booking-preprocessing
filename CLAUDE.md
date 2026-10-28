@@ -4,7 +4,8 @@
 - I'm Krishna, B.Tech AI & ML student, doing an AI internship at VoidMain Technologies.
 - This is **Task 2: Data Analysis, Preprocessing & Feature Engineering** (70 pts, mandatory).
 - Official brief: "Prepare real-world data for AI/ML applications. Select an appropriate public dataset. Perform data understanding, missing-value treatment, duplicate/outlier handling, encoding, scaling and suitable feature engineering/selection. Perform meaningful EDA and document preprocessing decisions."
-- Submission: public GitHub repo + execution screenshots (uploaded to the repo) + submit the link on the internship portal. Optional: short video explaining the code + live run.
+- Submission: public GitHub repo + a few key screenshots (uploaded to the repo) + submit the link on the internship portal.
+- **Main deliverable: a 10-15 min video I record myself** (screen recording + my voice) showing what each part of the project does and why - not a line-by-line code walkthrough. Everything we build should be easy to show and explain on screen.
 - This is a **standalone submission** with its own repo. Only Task 2 work goes here (no model training).
 - Keep the output model-ready (clean data + saved preprocessor), but don't build anything beyond Task 2's scope.
 - Environment: Windows, VS Code, Python. Project folder sits inside OneDrive Desktop - keep the virtual environment (`.venv`) out of git and avoid heavy generated folders.
@@ -81,10 +82,17 @@ requirements.txt
 8. **Quality pass** - all tests pass, ruff clean, docstrings/type hints everywhere, `docs/decisions.md` complete
 9. **README** - professional README (overview, dataset + credit, pipeline diagram, how to run, EDA insights with figures, decisions summary, structure, tech stack, live app link, author)
 10. **Web app (NO Streamlit)** - my own custom web app: Flask backend + hand-built HTML/CSS/JS frontend with a polished, professional design (not a template look). Pages: dataset overview, before/after cleaning stats, interactive EDA charts (Chart.js or Plotly.js), and upload-a-CSV -> download preprocessed output. Reuses `src/` + saved pipeline, no duplicated logic. We'll plan the design together before building.
-11. **Screenshots** - help me capture: `main.py` run, pytest passing, notebook key outputs, web app pages. Save to `screenshots/` and link them in the README.
+11. **Screenshots** - a few key screenshots only (e.g. `main.py` run, pytest passing, one or two web app pages). Save to `screenshots/` and link them in the README.
 12. **GitHub** - guide me to create a public repo, add remote, push (I'll handle login). Check nothing unwanted is committed.
 13. **Deploy live (not localhost)** - deploy the Flask app to a free public host (e.g. Render) with `gunicorn` + a proper start command; add the live link to the README.
-14. **Video prep** - short talking-points script: problem, dataset, each preprocessing step + why, live run of `main.py` and the app.
+14. **Video script** - a timed talking-points script (10-15 min total) for me to follow while recording. For each segment: target time, what to show on screen, and the points to say. Segments, in order:
+    1. Problem + dataset (source, size, target, why it's realistic)
+    2. Project structure (what each folder/module is for)
+    3. Each preprocessing step - what + why + before/after numbers (missing values, duplicates, invalid rows/outliers, feature engineering, encoding + scaling, feature selection, leakage)
+    4. EDA insights (key figures)
+    5. Live run of `python main.py` + `pytest`
+    6. The deployed web app (live link)
+    7. Wrap-up (results, what's model-ready, decisions log)
 15. **Final check** - verify every row of the requirement mapping table above is satisfied; then I submit the repo link on the portal.
 
 ## Engineering standards (this must look professional, NOT vibe-coded)
@@ -98,7 +106,8 @@ requirements.txt
 - **No data leakage** - split before fitting scalers/encoders; drop leaky columns.
 - **Consistent plots** - one shared style, proper titles/labels, saved at good resolution.
 - **Git** - one clean commit per stage with clear messages (e.g. `feat: add missing-value treatment`, `docs: add EDA insights`). Never commit `.venv`, caches, or secrets.
-- I must **understand every line** - after each stage, give a short explanation of what was done and why, so I can explain it in the video.
+- I must **understand every line** - after each stage, give a short explanation of what each part does and why (not line-by-line), so I can explain it in the video.
+- **Video-friendly outputs** - keep results visual and easy to show on screen: clear before/after numbers in logs, readable tables, well-labelled figures, notebook sections that tell a story.
 
 ## How to work with me
 - One stage at a time. Show results, then STOP and wait for my go-ahead.
