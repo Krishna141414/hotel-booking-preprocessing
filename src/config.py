@@ -195,3 +195,22 @@ CATEGORICAL_FEATURES: list[str] = [
     "country",
     "agent",
 ]
+
+# ---------------------------------------------------------------------------
+# Feature selection (reasoning in docs/decisions.md, section 6)
+# ---------------------------------------------------------------------------
+# Checks run on the training rows; they FLAG columns, the decisions below are final.
+LEAKAGE_PURITY_THRESHOLD: float = 0.99  # one column alone predicts the target
+CORRELATION_THRESHOLD: float = 0.9  # |r| above this = redundant pair
+NEAR_CONSTANT_THRESHOLD: float = 0.98  # one value in >= 98% of rows
+
+# Candidate features removed from the model input, with the reason.
+DROPPED_FEATURES: dict[str, str] = {
+    "assigned_room_type": "Leakage: set at check-in; changed rooms cancel 4.7% vs 31.5%",
+    "booking_changes": "Leakage risk: snapshot taken at the outcome date",
+    "arrival_date_week_number": "Redundant: r = 0.995 with arrival_month_num",
+    "stays_in_week_nights": "Redundant: r = 0.95 with total_nights (= total - weekend)",
+    "arrival_date_month": "Redundant: same information as arrival_month_num",
+    "arrival_date_year": "Does not generalise: future bookings have unseen years",
+    "babies": "Near-constant (98.9% zero); covered by has_children and total_guests",
+}

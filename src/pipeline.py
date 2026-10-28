@@ -44,11 +44,27 @@ class FeatureGroups:
 
     @classmethod
     def from_config(cls) -> "FeatureGroups":
-        """Build the groups from the lists in ``src/config.py``."""
+        """Build the *candidate* groups from the lists in ``src/config.py``."""
         return cls(
             numeric=list(config.NUMERIC_FEATURES),
             binary=list(config.BINARY_FEATURES),
             categorical=list(config.CATEGORICAL_FEATURES),
+        )
+
+    def without(self, columns: list[str] | dict[str, str]) -> "FeatureGroups":
+        """Return a copy with ``columns`` removed from every group.
+
+        Args:
+            columns: Column names (or a name -> reason mapping) to drop.
+
+        Returns:
+            The reduced feature groups.
+        """
+        drop = set(columns)
+        return FeatureGroups(
+            numeric=[c for c in self.numeric if c not in drop],
+            binary=[c for c in self.binary if c not in drop],
+            categorical=[c for c in self.categorical if c not in drop],
         )
 
 
@@ -77,6 +93,31 @@ def _require(df: pd.DataFrame, columns: list[str]) -> None:
         raise ValueError(f"Missing model input columns: {missing}")
 
 
+def split_frame(
+    df: pd.DataFrame,
+    test_size: float = config.TEST_SIZE,
+    random_state: int = config.RANDOM_STATE,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split whole rows into stratified train/test frames.
+
+    Feature-selection checks use the training frame from here; :func:`split_data`
+    uses the same split, so both see exactly the same training rows.
+
+    Args:
+        df: Bookings with the target column.
+        test_size: Share of rows held out for testing.
+        random_state: Seed for a reproducible split.
+
+    Returns:
+        ``(train_rows, test_rows)``.
+    """
+    _require(df, [config.TARGET])
+    train_rows, test_rows = train_test_split(
+        df, test_size=test_size, random_state=random_state, stratify=df[config.TARGET]
+    )
+    return train_rows, test_rows
+
+
 def split_data(
     df: pd.DataFrame,
     groups: FeatureGroups,
@@ -95,13 +136,9 @@ def split_data(
         ``(X_train, X_test, y_train, y_test)``.
     """
     _require(df, [*groups.all, config.TARGET])
-    x_train, x_test, y_train, y_test = train_test_split(
-        df[groups.all],
-        df[config.TARGET],
-        test_size=test_size,
-        random_state=random_state,
-        stratify=df[config.TARGET],
-    )
+    train_rows, test_rows = split_frame(df, test_size, random_state)
+    x_train, y_train = train_rows[groups.all], train_rows[config.TARGET]
+    x_test, y_test = test_rows[groups.all], test_rows[config.TARGET]
     logger.info(
         "Split: %s train / %s test rows (stratified, cancel rate %.1f%% / %.1f%%)",
         f"{len(x_train):,}",
@@ -228,14 +265,18 @@ def _with_target(features: pd.DataFrame, target: pd.Series) -> pd.DataFrame:
 
 
 def fit_preprocessing(
-    featured: pd.DataFrame, groups: FeatureGroups, adr_cap: float
+    featured: pd.DataFrame,
+    groups: FeatureGroups,
+    adr_cap: float,
+    dropped: dict[str, str] | None = None,
 ) -> PreprocessingResult:
     """Split, fit the preprocessor on train only, and transform both sets.
 
     Args:
         featured: Cleaned + engineered bookings with the target.
-        groups: Model input columns by type.
+        groups: Model input columns by type (after feature selection).
         adr_cap: ADR cap used during cleaning (stored for new data).
+        dropped: Features removed in selection, with reasons (stored in metadata).
 
     Returns:
         Fitted preprocessor, model-ready train/test frames and metadata.
@@ -262,6 +303,7 @@ def fit_preprocessing(
         "binary_features": groups.binary,
         "categorical_features": groups.categorical,
         "input_features": groups.all,
+        "dropped_features": dropped or {},
         "output_features": train_features.columns.tolist(),
         "rows": {"train": len(x_train), "test": len(x_test)},
         "cancel_rate_pct": {

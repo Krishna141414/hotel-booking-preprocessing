@@ -83,3 +83,68 @@ def test_engineer_features_requires_inputs() -> None:
     """Missing input columns raise a clear error."""
     with pytest.raises(ValueError, match="Missing columns"):
         features.engineer_features(pd.DataFrame({"adr": [1.0]}))
+
+
+# ---------------------------------------------------------------------------
+# Feature selection checks
+# ---------------------------------------------------------------------------
+@pytest.fixture
+def train_rows() -> pd.DataFrame:
+    """Ten training rows: one leaky column, one redundant pair, one near-constant column."""
+    return pd.DataFrame(
+        {
+            "is_canceled": [1, 1, 1, 0, 0, 0, 0, 1, 0, 0],
+            "status": ["C", "C", "C", "OK", "OK", "OK", "OK", "C", "OK", "OK"],
+            "hotel": ["A", "B"] * 5,
+            "nights": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+            "nights_copy": [2, 4, 6, 8, 10, 12, 14, 16, 18, 21],
+            "lead_time": [5, 1, 9, 2, 8, 3, 7, 4, 6, 0],
+            "babies": [0] * 9 + [1],
+        }
+    )
+
+
+def test_target_purity(train_rows: pd.DataFrame) -> None:
+    """A leaky column scores 1.0; an uninformative one scores the majority share."""
+    assert features.target_purity(train_rows, "status") == 1.0
+    assert features.target_purity(train_rows, "hotel") == pytest.approx(0.6)
+
+
+def test_find_leakage_columns(train_rows: pd.DataFrame) -> None:
+    """Only the column that perfectly predicts the target is flagged."""
+    assert features.find_leakage_columns(train_rows, ["status", "hotel"]) == {"status": 1.0}
+
+
+def test_find_correlated_pairs(train_rows: pd.DataFrame) -> None:
+    """The near-copy is reported; unrelated columns are not."""
+    pairs = features.find_correlated_pairs(train_rows, ["nights", "nights_copy", "lead_time"])
+    assert pairs[["feature_a", "feature_b"]].values.tolist() == [["nights", "nights_copy"]]
+
+
+def test_find_near_constant(train_rows: pd.DataFrame) -> None:
+    """A column that is 90% one value is flagged at a 0.9 threshold."""
+    flagged = features.find_near_constant(train_rows, ["babies", "nights"], threshold=0.9)
+    assert flagged == {"babies": 0.9}
+
+
+def test_validate_selection_rejects_leaky_feature(train_rows: pd.DataFrame) -> None:
+    """A final feature set that still contains leakage fails loudly."""
+    with pytest.raises(ValueError, match="selection check failed"):
+        features.validate_selection(train_rows, ["nights", "lead_time"], ["status"])
+
+
+def test_validate_selection_rejects_redundant_pair(train_rows: pd.DataFrame) -> None:
+    """A final feature set with a redundant pair fails loudly."""
+    with pytest.raises(ValueError, match="redundant pairs"):
+        features.validate_selection(train_rows, ["nights", "nights_copy"], ["hotel"])
+
+
+def test_validate_selection_accepts_clean_set(train_rows: pd.DataFrame) -> None:
+    """A clean final set passes without error."""
+    features.validate_selection(train_rows, ["nights", "lead_time"], ["hotel"])
+
+
+def test_configured_drops_are_candidates() -> None:
+    """Every dropped feature is a real candidate (catches typos in config)."""
+    candidates = set(config.NUMERIC_FEATURES + config.BINARY_FEATURES + config.CATEGORICAL_FEATURES)
+    assert set(config.DROPPED_FEATURES) <= candidates

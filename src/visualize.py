@@ -12,6 +12,7 @@ from pathlib import Path
 import matplotlib as mpl
 import pandas as pd
 from matplotlib.axes import Axes
+from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.figure import Figure
 
 from src import config, eda
@@ -31,6 +32,8 @@ COLORS: dict[str, str] = {
     "grid": "#e1e0d9",
     "axis": "#c3c2b7",
 }
+# Diverging scale for correlations: blue (negative) <- neutral gray -> red (positive).
+DIVERGING: tuple[str, str, str] = ("#256abf", "#f0efec", "#e34948")
 HOTEL_COLORS: dict[str, str] = {
     "City Hotel": COLORS["series_1"],
     "Resort Hotel": COLORS["series_2"],
@@ -534,6 +537,47 @@ def plot_cancellation_by_special_requests(df: pd.DataFrame) -> Figure:
     ax.grid(axis="x", visible=False)
     ax.set_xlabel("Special requests")
     ax.set_ylabel("Canceled (%)")
+    return fig
+
+
+def plot_correlation_heatmap(
+    train_rows: pd.DataFrame, columns: list[str], label_threshold: float = 0.7
+) -> Figure:
+    """Correlation heatmap of candidate numeric features (training rows).
+
+    Only strong correlations (|r| >= ``label_threshold``) are labelled, so the
+    redundant pairs stand out instead of drowning in numbers.
+
+    Args:
+        train_rows: Training split.
+        columns: Numeric/binary candidate features.
+        label_threshold: Minimum |r| for an in-cell label.
+
+    Returns:
+        The figure.
+    """
+    corr = train_rows[columns].corr()
+    fig, (ax,) = new_figure(
+        "Two pairs are near-duplicates: week number vs month, week nights vs total nights",
+        "Pearson correlation between candidate numeric features (train); |r| >= 0.7 shown",
+        figsize=(11, 10),
+    )
+    cmap = LinearSegmentedColormap.from_list("diverging", DIVERGING)
+    image = ax.imshow(corr.to_numpy(), cmap=cmap, vmin=-1, vmax=1)
+    ax.set_xticks(range(len(columns)), columns, rotation=90, fontsize=8)
+    ax.set_yticks(range(len(columns)), columns, fontsize=8)
+    ax.grid(visible=False)
+    for i in range(len(columns)):
+        for j in range(len(columns)):
+            value = corr.iat[i, j]
+            if i != j and abs(value) >= label_threshold:
+                # White text only on the darkest cells; dark ink elsewhere for contrast.
+                ink = "#ffffff" if abs(value) >= 0.85 else COLORS["ink"]
+                ax.text(j, i, f"{value:.2f}", ha="center", va="center", fontsize=7, color=ink)
+    colorbar = fig.colorbar(image, ax=ax, shrink=0.6)
+    colorbar.outline.set_visible(False)
+    colorbar.ax.tick_params(labelsize=8)
+    fig.subplots_adjust(top=0.9, left=0.25)
     return fig
 
 

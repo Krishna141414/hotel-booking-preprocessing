@@ -125,3 +125,11 @@ def test_prepare_new_bookings_on_real_rows(tmp_path: Path) -> None:
     assert list(model_ready.columns) == result.metadata["output_features"]
     assert len(model_ready) == len(cleaning.data)
     assert model_ready.isna().sum().sum() == 0
+
+
+def test_feature_groups_without() -> None:
+    """Dropping columns removes them from every group and keeps the order."""
+    reduced = GROUPS.without({"adr": "reason", "country": "reason"})
+    assert reduced.numeric == ["lead_time"]
+    assert reduced.categorical == ["hotel", "agent"]
+    assert reduced.binary == ["has_agent"]
