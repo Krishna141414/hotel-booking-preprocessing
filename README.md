@@ -180,7 +180,7 @@ arrival_month_num, arrival_weekday, arrival_season, is_domestic, previous_cancel
 Requires Python 3.14 (see `.python-version`).
 
 ```bash
-git clone https://github.com/<your-username>/hotel-booking-preprocessing.git
+git clone https://github.com/Krishna141414/hotel-booking-preprocessing.git
 cd hotel-booking-preprocessing
 python -m venv .venv
 .venv\Scripts\activate            # Windows  (macOS/Linux: source .venv/bin/activate)
