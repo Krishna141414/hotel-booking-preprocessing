@@ -450,3 +450,10 @@ dataset), so creating them before the train/test split cannot leak test informat
   app, 120 s timeout); `render.yaml` (Render Blueprint, health check `/healthz`) and a `Procfile`
   for other hosts. Python pinned to 3.14.0 via `.python-version` and `PYTHON_VERSION`.
 - The host installs only `requirements.txt` (no pytest/ruff/Jupyter).
+- **Python 3.14 on Render:** supported (Render's own default for new services is 3.14.x).
+  Pinned to 3.14.0 to match the development machine exactly.
+- **Every dependency pinned, including indirect ones** (Werkzeug, scipy, ...), resolved for
+  Linux/CPython 3.14 - all ship prebuilt wheels, so the build never compiles anything and every
+  deploy installs exactly the tested set. `seaborn` was removed: it was listed but never used.
+- **Build verified in a clean environment** with only `requirements.txt`: the Render build
+  command produced a byte-identical cache and every page and API route returned 200.
