@@ -1,7 +1,22 @@
 # Preprocessing Decisions Log
 
 Every preprocessing choice made in this project, why it was made, and what the
-alternative would have been. Updated stage by stage.
+alternative would have been. Numbers come from `python main.py` on the full dataset.
+
+**At a glance:** 119,390 raw bookings -> 87,208 clean rows (27% removed, almost all exact
+duplicates) -> 129,425 missing cells fixed -> 10 engineered features -> 40 candidates checked
+for leakage/redundancy -> 33 selected inputs -> 86 model-ready columns, with the scaler and
+encoders fitted on the 69,766 training rows only.
+
+| Section | Topic |
+|---|---|
+| [1](#1-data-loading) | Data loading (`"NULL"` strings, raw data read-only) |
+| [2](#2-cleaning-srccleaningpy) | Cleaning: invalid rows, duplicates, missing values, outliers |
+| [3](#3-feature-engineering-srcfeaturespy) | Feature engineering |
+| [4](#4-exploratory-data-analysis-srcedapy-srcvisualizepy) | EDA approach and key insights |
+| [5](#5-encoding-and-scaling-srcpipelinepy) | Encoding and scaling |
+| [6](#6-feature-selection-srcfeaturespy-configdropped_features) | Feature selection and leakage |
+| [7](#7-reproducibility-and-validation) | Reproducibility and validation |
 
 ## 1. Data loading
 
@@ -347,3 +362,30 @@ dataset), so creating them before the train/test split cannot leak test informat
 - Figure: `reports/figures/11_correlation_heatmap.png`.
 - **Not done (out of scope):** model-based selection (feature importance, RFE) needs a trained
   model - Task 2 stops at model-ready data.
+
+## 7. Reproducibility and validation
+
+### 7.1 Same input -> same output
+- Fixed `random_state = 42` for the split; pinned library versions in `requirements.txt`
+  (Python 3.14 in `.python-version`).
+- Running `python main.py` twice produces byte-identical `preprocessor.joblib` and
+  `preprocessing_metadata.json` (checked with checksums).
+- All thresholds and column lists live in `src/config.py` - no magic numbers in the code.
+
+### 7.2 Fail loudly instead of silently producing bad data
+| Where | Check |
+|---|---|
+| Download | Shape must be exactly 119,390 x 32; failed downloads never replace the raw file |
+| Loading | File exists and has the target column |
+| Cleaning | Required columns exist before; **no missing value survives** after |
+| Feature engineering | Input columns exist; no booking with 0 paying guests; month names valid; dates real |
+| Feature selection | Final list re-checked: no leakage, no dropped column, no redundant pair |
+| Encoding | Unknown categories in new data map to "infrequent" instead of crashing |
+| New data | Reuses the training ADR cap and fitted preprocessor - nothing is re-fitted |
+
+### 7.3 Tests
+- 60 pytest tests on small hand-made DataFrames (every cleaning, feature, EDA and pipeline
+  function), plus one end-to-end test on real raw rows and download tests that use local
+  `file://` URLs instead of the network.
+- Notable tests: the scaler mean equals the **training** mean (proves fit-on-train-only);
+  an unseen country maps to "infrequent"; a saved and reloaded preprocessor gives identical output.

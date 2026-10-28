@@ -365,7 +365,10 @@ def save_artifacts(
     """
     preprocessor_path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(result.preprocessor, preprocessor_path)
-    metadata_path.write_text(json.dumps(result.metadata, indent=2), encoding="utf-8")
+    # Unix newlines keep the file byte-identical on Windows and Linux.
+    metadata_path.write_text(
+        json.dumps(result.metadata, indent=2) + "\n", encoding="utf-8", newline="\n"
+    )
     logger.info("Saved %s and %s", preprocessor_path.name, metadata_path.name)
 
 

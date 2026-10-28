@@ -20,7 +20,6 @@ CLEAN_DATA_PATH: Path = PROCESSED_DATA_DIR / "hotel_bookings_clean.csv"
 
 MODELS_DIR: Path = PROJECT_ROOT / "models"
 FIGURES_DIR: Path = PROJECT_ROOT / "reports" / "figures"
-DOCS_DIR: Path = PROJECT_ROOT / "docs"
 
 # ---------------------------------------------------------------------------
 # Dataset source (public TidyTuesday mirror of Antonio, Almeida & Nunes, 2019)
@@ -45,9 +44,6 @@ TARGET: str = "is_canceled"
 
 # Known only after the stay/cancellation happens -> would leak the target.
 LEAKAGE_COLUMNS: list[str] = ["reservation_status", "reservation_status_date"]
-
-# Numeric IDs that are really categories (agent #9 is not "bigger" than agent #1).
-ID_AS_CATEGORY_COLUMNS: list[str] = ["agent", "company"]
 
 GUEST_COLUMNS: list[str] = ["adults", "children", "babies"]
 
