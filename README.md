@@ -7,7 +7,7 @@ decision explained.
 ![Tests](https://img.shields.io/badge/tests-87%20passing-2a78d6)
 ![Lint](https://img.shields.io/badge/lint-ruff-eb6834)
 
-> **Live web app:** _coming soon - deployed in a later step_
+> **Live web app:** [hotelprep.onrender.com](https://hotelprep.onrender.com) _(free tier: the first visit after idle can take ~30-60 s)_
 > &nbsp;|&nbsp; **Decisions log:** [`docs/decisions.md`](docs/decisions.md)
 > &nbsp;|&nbsp; **Walkthrough notebook:** [`notebooks/eda.ipynb`](notebooks/eda.ipynb)
 
