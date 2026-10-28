@@ -384,8 +384,51 @@ dataset), so creating them before the train/test split cannot leak test informat
 | New data | Reuses the training ADR cap and fitted preprocessor - nothing is re-fitted |
 
 ### 7.3 Tests
-- 60 pytest tests on small hand-made DataFrames (every cleaning, feature, EDA and pipeline
+- 82 pytest tests on small hand-made DataFrames (every cleaning, feature, EDA and pipeline
   function), plus one end-to-end test on real raw rows and download tests that use local
-  `file://` URLs instead of the network.
+  `file://` URLs instead of the network, and Flask test-client tests for every page and API route.
 - Notable tests: the scaler mean equals the **training** mean (proves fit-on-train-only);
   an unseen country maps to "infrequent"; a saved and reloaded preprocessor gives identical output.
+
+## 8. Web app (`app/`)
+
+### 8.1 Flask + hand-written HTML/CSS/JS, no Streamlit
+- **Why:** The brief asks for a custom app; a small Flask backend with plain templates keeps
+  every line explainable. Charts use Chart.js (pinned 4.4.1) for hover tooltips.
+- **Alternative considered:** Streamlit/Dash - faster to build, but template-looking and
+  explicitly ruled out for this project.
+
+### 8.2 No duplicated logic
+- `app/services.py` only *calls* `src/` (`clean_data`, `engineer_features`, `src/eda.py`,
+  `prepare_new_bookings`) and shapes the results as JSON. The Explore charts and the static
+  figures read the same `src/eda.py` functions, so they cannot disagree.
+
+### 8.3 Pre-computed, light on memory
+- At start-up the app loads the raw CSV once, computes every page payload (~14 KB of JSON in
+  total) and keeps only those plus a 500-row sample. Pages and the chart API do no pandas work
+  per request. Start-up takes ~3 s.
+- **Measured locally:** 172 MB steady, 306 MB peak at start-up, 359 MB peak while processing
+  the full 119,390-row file (6.4 s) - inside a 512 MB free-tier limit.
+
+### 8.4 Uploads reuse the fitted pipeline - nothing is re-fitted
+- An uploaded raw CSV goes through `prepare_new_bookings()`: cleaned with the **training** ADR
+  cap (335), features engineered, then `transform`ed by `models/preprocessor.joblib`. Unknown
+  categories fall into "infrequent" instead of crashing.
+- **Safety:** only `.csv`, max 30 MB, parsed in memory (never written to disk); clear 400
+  errors for wrong files or missing columns; results kept in a small in-memory store (newest 3 - a full-dataset result is ~40 MB, so this caps memory on a 512 MB host)
+  behind random tokens; table cells are HTML-escaped.
+- **Trade-off:** in-memory results disappear on restart and are per server process, which is
+  why gunicorn runs **1 worker with 4 threads**. Fine for a demo; a real product would use
+  object storage.
+
+### 8.5 Design choices
+- Same validated colour palette as the static figures (blue / orange, colour follows the hotel,
+  never its position), light and dark themes from one set of CSS tokens (follows the OS, with a
+  toggle), thin bars rounded only at the data end, a muted reference line for the overall rate,
+  and a "Show data" table under every chart so no number depends on colour alone.
+
+### 8.6 Deployment
+- `gunicorn app.app:app` with settings in `gunicorn.conf.py` (binds to `$PORT`, preloads the
+  app, 120 s timeout); `render.yaml` (Render Blueprint, health check `/healthz`) and a `Procfile`
+  for other hosts. Python pinned to 3.14.0 via `.python-version` and `PYTHON_VERSION`.
+- The host installs only `requirements.txt` (no pytest/ruff/Jupyter).

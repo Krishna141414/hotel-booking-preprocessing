@@ -439,21 +439,6 @@ def plot_monthly_adr(df: pd.DataFrame) -> Figure:
     return fig
 
 
-def _sorted_cancel_rates(df: pd.DataFrame, column: str) -> pd.DataFrame:
-    """Cancellation table sorted from highest to lowest rate, tiny groups removed.
-
-    Args:
-        df: Cleaned bookings DataFrame.
-        column: Category column.
-
-    Returns:
-        Output of ``eda.cancellation_rate_by`` sorted by rate, tiny groups removed.
-    """
-    table = eda.cancellation_rate_by(df, column)
-    table = table[table["bookings"] >= len(df) * config.EDA_MIN_GROUP_SHARE]
-    return table.sort_values("cancel_rate_pct", ascending=False)
-
-
 def plot_cancellation_by_deposit_and_segment(df: pd.DataFrame) -> Figure:
     """Cancellation rate by deposit type and by market segment (two panels).
 
@@ -471,7 +456,7 @@ def plot_cancellation_by_deposit_and_segment(df: pd.DataFrame) -> Figure:
     )
     overall = _overall_cancel_rate(df)
     for ax, column in zip(axes, ("deposit_type", "market_segment"), strict=True):
-        table = _sorted_cancel_rates(df, column)
+        table = eda.cancellation_rate_ranked(df, column)
         _hbar(ax, table["cancel_rate_pct"], COLORS["series_1"], fmt="{:.1f}%")
         _reference_line(ax, overall, f"overall {overall:.1f}%")
         ax.set_xlabel("Canceled (%)")

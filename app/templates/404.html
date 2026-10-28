@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Page not found{% endblock %}
+{% block content %}
+<section class="not-found">
+  <p class="eyebrow">404</p>
+  <h1>This page is not in the dataset.</h1>
+  <p class="muted">The link may be wrong, or a processed file has expired. Results are kept in memory only for the last few uploads.</p>
+  <a class="button button-primary" href="{{ url_for('overview') }}">Back to overview</a>
+</section>
+{% endblock %}

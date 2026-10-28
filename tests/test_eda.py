@@ -40,6 +40,14 @@ def test_cancellation_rate_by_respects_order(bookings: pd.DataFrame) -> None:
     assert table.index.tolist() == ["Resort Hotel", "City Hotel"]
 
 
+def test_cancellation_rate_ranked_drops_tiny_groups(bookings: pd.DataFrame) -> None:
+    """Groups below the minimum share are hidden; the rest are sorted by rate."""
+    table = eda.cancellation_rate_ranked(bookings, "market_segment", min_share=0.5)
+    assert table.index.tolist() == ["Online TA"]
+    ranked = eda.cancellation_rate_ranked(bookings, "country", min_share=0.0)
+    assert ranked["cancel_rate_pct"].is_monotonic_decreasing
+
+
 def test_cancellation_by_lead_time_keeps_chronological_order(bookings: pd.DataFrame) -> None:
     """Every lead-time group appears in order; 0-7 days holds 3 bookings here."""
     table = eda.cancellation_by_lead_time(bookings)

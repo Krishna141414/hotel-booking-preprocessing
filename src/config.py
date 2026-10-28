@@ -210,3 +210,14 @@ DROPPED_FEATURES: dict[str, str] = {
     "arrival_date_year": "Does not generalise: future bookings have unseen years",
     "babies": "Near-constant (98.9% zero); covered by has_children and total_guests",
 }
+
+# ---------------------------------------------------------------------------
+# Web app
+# ---------------------------------------------------------------------------
+APP_SAMPLE_ROWS: int = 500  # raw rows offered as a downloadable sample
+APP_MAX_UPLOAD_MB: int = 30  # the full raw dataset is ~17 MB
+# Processed uploads kept in memory for download. A full-dataset result is ~40 MB, so
+# 3 keeps the worst case well under a 512 MB free-hosting limit.
+APP_RESULT_CACHE_SIZE: int = 3
+APP_PREVIEW_ROWS: int = 6
+APP_HOTEL_FILTERS: list[str] = ["All hotels", "City Hotel", "Resort Hotel"]

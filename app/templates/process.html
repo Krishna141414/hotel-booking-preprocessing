@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Process data{% endblock %}
+{% block content %}
+<section class="page-title">
+  <p class="eyebrow">Use the saved pipeline</p>
+  <h1>Turn raw bookings into model-ready data</h1>
+  <p>Upload a CSV in the original raw format and get it back cleaned and encoded - by the exact same code and fitted preprocessor as the training data. Nothing is re-fitted on your file.</p>
+</section>
+
+<section class="section grid grid-2">
+  <article class="card">
+    <form id="upload-form" novalidate>
+      <label class="dropzone" id="dropzone" for="file-input">
+        <input id="file-input" name="file" type="file" accept=".csv,text/csv">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="muted"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+        <span class="file-name" id="file-name">Drop a CSV here or click to browse</span>
+        <span class="stat-note">Raw format: the dataset's 32 columns · <code>is_canceled</code> optional · max {{ max_mb }} MB</span>
+      </label>
+      <div class="button-row note">
+        <button class="button button-primary" type="submit" id="process-button">Process file</button>
+        <button class="button button-secondary" type="button" id="sample-button">Try a {{ sample_rows }}-row sample</button>
+        <a class="button button-secondary" href="{{ url_for('sample_csv') }}">Download sample CSV</a>
+      </div>
+      <p class="alert" id="error" role="alert" hidden></p>
+    </form>
+  </article>
+
+  <article class="card">
+    <div class="card-head">
+      <h3>What happens to your file</h3>
+      <p>Three steps, all from <code>src/</code>.</p>
+    </div>
+    <ol class="flow">
+      <li>
+        <span class="dot">1</span>
+        <div><strong>Clean</strong><p>Invalid rows and exact duplicates removed, missing values filled, ADR capped at the <em>training</em> cap of {{ "{:,.0f}".format(features.adr_cap) }}.</p></div>
+      </li>
+      <li>
+        <span class="dot">2</span>
+        <div><strong>Engineer</strong><p>{{ features.engineered | length }} row-wise features added, e.g. <code>total_nights</code>, <code>adr_per_person</code>, <code>previous_cancel_ratio</code>.</p></div>
+      </li>
+      <li>
+        <span class="dot">3</span>
+        <div><strong>Transform</strong><p>The saved <code>preprocessor.joblib</code> selects {{ features.numeric | length + features.binary | length + features.categorical | length }} inputs and encodes them into {{ features.n_outputs }} columns. Unknown categories fall into "infrequent".</p></div>
+      </li>
+    </ol>
+  </article>
+</section>
+
+<section class="section results" id="results" hidden aria-live="polite">
+  <div class="section-head">
+    <div>
+      <h2 id="result-title">Result</h2>
+      <p class="muted" id="result-note"></p>
+    </div>
+    <div class="button-row">
+      <a class="button button-primary" id="download-model" href="#">Download model-ready CSV</a>
+      <a class="button button-secondary" id="download-clean" href="#">Download cleaned CSV</a>
+    </div>
+  </div>
+
+  <div class="grid grid-4">
+    <div class="card stat"><span class="stat-label">Rows</span><span class="stat-value num" id="stat-rows"></span><span class="stat-note">in → out</span></div>
+    <div class="card stat"><span class="stat-label">Columns</span><span class="stat-value num" id="stat-columns"></span><span class="stat-note">raw → model-ready</span></div>
+    <div class="card stat"><span class="stat-label">Missing cells</span><span class="stat-value num" id="stat-missing"></span><span class="stat-note">in → out</span></div>
+    <div class="card stat"><span class="stat-label">Target column</span><span class="stat-value" id="stat-target"></span><span class="stat-note"><code>is_canceled</code></span></div>
+  </div>
+
+  <div class="grid grid-2 section">
+    <article class="card">
+      <div class="card-head"><h3>Cleaning report</h3><p>What each step did to your file.</p></div>
+      <div id="steps-table"></div>
+    </article>
+    <article class="card">
+      <div class="card-head"><h3>Preview</h3><p>First rows and columns of the model-ready output (scaled and one-hot encoded).</p></div>
+      <div id="preview-table"></div>
+    </article>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script src="{{ url_for('static', filename='js/process.js') }}"></script>
+{% endblock %}

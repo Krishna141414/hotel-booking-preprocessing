@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Cleaning{% endblock %}
+{% block content %}
+<section class="page-title">
+  <p class="eyebrow">Step 2 · Cleaning</p>
+  <h1>What changed, and why</h1>
+  <p>Ten steps run in a fixed order: invalid rows, then exact duplicates (before any column is recoded), then missing values, category fixes and the price cap. Every number below is produced by <code>clean_data()</code>.</p>
+</section>
+
+<section class="section grid grid-2">
+  <article class="card">
+    <div class="card-head">
+      <h3>Before vs after</h3>
+      <p>Key data-quality numbers on the raw file and on the cleaned data.</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Metric</th><th class="num">Before</th><th class="arrow-cell" aria-hidden="true"></th><th class="num">After</th></tr></thead>
+        <tbody>
+          {% for row in cleaning.before_after %}
+          <tr>
+            <td>{{ row.metric | replace("_", " ") | replace(" pct", " (%)") }}</td>
+            <td class="num">{{ row.before }}</td>
+            <td class="arrow-cell" aria-hidden="true">→</td>
+            <td class="num">
+              {% if row.after == "dropped" %}<span class="badge badge-neutral">replaced by flag</span>
+              {% elif row.after == row.before %}{{ row.after }}
+              {% else %}<strong>{{ row.after }}</strong>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="insight note">4 rows look alike after cleaning: they were different bookings (different company IDs) until the ID was replaced by a 0/1 flag, so they are kept.</p>
+  </article>
+
+  <article class="card chart-card">
+    <h3>Where did {{ "{:,}".format(overview.raw_rows - overview.clean_rows) }} rows go?</h3>
+    <p class="insight">Rows removed per cleaning step. Exact duplicates account for almost all of them.</p>
+    <div class="chart-box"><canvas id="chart-removed" role="img" aria-label="Rows removed per cleaning step"></canvas></div>
+  </article>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <div>
+      <h2>Step by step</h2>
+      <p class="muted">Each step reports rows removed and values changed. Full reasoning and the alternatives considered are in <code>docs/decisions.md</code>.</p>
+    </div>
+  </div>
+  <article class="card">
+    <ol class="steps">
+      {% for step in cleaning.steps %}
+      <li>
+        <span class="index">{{ loop.index }}</span>
+        <div class="step-main">
+          <span class="step-name">{{ step.step }}</span>
+          <span class="chips">
+            {% if step.rows_removed %}<span class="badge badge-critical num">−{{ "{:,}".format(step.rows_removed) }} rows</span>{% endif %}
+            {% if step.values_changed %}<span class="badge badge-good num">{{ "{:,}".format(step.values_changed) }} values fixed</span>{% endif %}
+            {% if step.columns %}<span class="badge badge-neutral">{{ step.columns }}</span>{% endif %}
+          </span>
+        </div>
+        <p class="step-why">{{ step.why }}</p>
+      </li>
+      {% endfor %}
+    </ol>
+  </article>
+</section>
+
+<section class="section grid grid-2">
+  <article class="card chart-card">
+    <h3>The duplicates were not random</h3>
+    <p class="insight">Removed duplicates are mostly canceled group blocks, so dropping them lowers the cancellation rate from {{ overview.cancel_rate_raw }}% to {{ overview.cancel_rate_clean }}%. Kept for leakage safety, documented as a trade-off.</p>
+    <div class="chart-box"><canvas id="chart-duplicates" role="img" aria-label="Removed duplicates compared with kept rows"></canvas></div>
+  </article>
+
+  <article class="card">
+    <div class="card-head">
+      <h3>Average daily rate (ADR)</h3>
+      <p>One negative row dropped; zero prices kept (complimentary and day-use stays); values above the 99.9th percentile capped at <strong class="num">{{ "{:,.2f}".format(cleaning.adr_cap) }}</strong>.</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Statistic</th><th class="num">Raw</th><th class="num">Cleaned</th></tr></thead>
+        <tbody>
+          {% for key in ["count", "mean", "std", "min", "25%", "50%", "75%", "max"] %}
+          <tr>
+            <td>{{ key }}</td>
+            {% set fmt = "{:,.0f}" if key == "count" else "{:,.2f}" %}
+            <td class="num">{{ fmt.format(cleaning.adr.raw[key]) }}</td>
+            <td class="num">{{ fmt.format(cleaning.adr.clean[key]) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+</section>
+
+<script type="application/json" id="cleaning-data">{{ cleaning | tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script>
+  const cleaning = JSON.parse(document.getElementById("cleaning-data").textContent);
+  const removed = cleaning.steps.filter((step) => step.rows_removed > 0);
+  const metrics = [
+    ["cancel_rate_pct", "Canceled"],
+    ["groups_segment_pct", "Groups segment"],
+    ["non_refund_pct", "Non-refund deposit"],
+  ];
+
+  HotelCharts.mount(() => [
+    HotelCharts.bar(document.getElementById("chart-removed"), {
+      labels: removed.map((step) => step.step),
+      values: removed.map((step) => step.rows_removed),
+      label: "Rows removed",
+      unit: "",
+      horizontal: true,
+    }),
+    HotelCharts.groupedBar(document.getElementById("chart-duplicates"), {
+      labels: metrics.map(([, label]) => label),
+      groups: cleaning.duplicates.map((group) => ({
+        label: `${group.group} (${HotelCharts.integer.format(group.rows)} rows)`,
+        slot: group.group === "Removed duplicates" ? 1 : 0, // orange, as in the static figure
+        values: metrics.map(([key]) => group[key]),
+      })),
+    }),
+  ]);
+</script>
+{% endblock %}

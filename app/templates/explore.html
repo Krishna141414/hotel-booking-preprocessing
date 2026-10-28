@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Explore{% endblock %}
+{% block content %}
+<section class="page-title">
+  <p class="eyebrow">Step 4 · Exploratory data analysis</p>
+  <h1>What drives a cancellation?</h1>
+  <p>Cancellation rates on the cleaned, de-duplicated data. Filter by hotel, hover any bar or point for exact values, and open "Show data" for the numbers behind each chart. The thin line marks the overall rate.</p>
+</section>
+
+<div class="filter-bar">
+  <div class="segmented" role="group" aria-label="Hotel filter">
+    {% for name in filters %}
+    <button type="button" data-hotel="{{ name }}" aria-pressed="{{ 'true' if loop.first else 'false' }}">{{ name }}</button>
+    {% endfor %}
+  </div>
+  <p class="filter-summary" id="filter-summary" aria-live="polite">Loading…</p>
+</div>
+
+<section class="grid grid-2">
+  <article class="card chart-card span-2">
+    <h3>Cancellation rate by lead time</h3>
+    <p class="insight">The earlier the booking, the more likely it is canceled: 8% within a week vs 41% more than a year ahead (all hotels).</p>
+    <div class="chart-box"><canvas id="chart-lead" role="img" aria-label="Cancellation rate by lead time"></canvas></div>
+    <details class="data-view"><summary>Show data</summary><div data-table="lead_time"></div></details>
+  </article>
+
+  <article class="card chart-card">
+    <h3>Cancellation rate by arrival month</h3>
+    <p class="insight">Resort cancellations climb in summer; City stays high all year.</p>
+    <div class="chart-box"><canvas id="chart-month-cancel" role="img" aria-label="Monthly cancellation rate by hotel"></canvas></div>
+    <details class="data-view"><summary>Show data</summary><div data-table="monthly_cancel"></div></details>
+  </article>
+
+  <article class="card chart-card">
+    <h3>Average daily rate by arrival month</h3>
+    <p class="insight">Resort prices peak sharply in August; City prices stay flatter.</p>
+    <div class="chart-box"><canvas id="chart-month-adr" role="img" aria-label="Monthly average daily rate by hotel"></canvas></div>
+    <details class="data-view"><summary>Show data</summary><div data-table="monthly_adr"></div></details>
+  </article>
+
+  <article class="card chart-card">
+    <h3>By deposit type</h3>
+    <p class="insight">Non-refundable bookings cancel most - they are mostly group allotments booked far ahead.</p>
+    <div class="chart-box"><canvas id="chart-deposit" role="img" aria-label="Cancellation rate by deposit type"></canvas></div>
+    <details class="data-view"><summary>Show data</summary><div data-table="deposit"></div></details>
+  </article>
+
+  <article class="card chart-card">
+    <h3>By market segment</h3>
+    <p class="insight">Online travel agents cancel the most; corporate and direct bookings the least.</p>
+    <div class="chart-box"><canvas id="chart-segment" role="img" aria-label="Cancellation rate by market segment"></canvas></div>
+    <details class="data-view"><summary>Show data</summary><div data-table="segment"></div></details>
+  </article>
+
+  <article class="card chart-card">
+    <h3>Top 10 countries</h3>
+    <p class="insight">Portugal is the largest market and cancels well above average. Hover for booking counts.</p>
+    <div class="chart-box tall"><canvas id="chart-countries" role="img" aria-label="Cancellation rate for the top 10 countries"></canvas></div>
+    <details class="data-view"><summary>Show data</summary><div data-table="countries"></div></details>
+  </article>
+
+  <article class="card chart-card">
+    <h3>By number of special requests</h3>
+    <p class="insight">Guests who ask for something (a quiet room, a crib) are planning to come.</p>
+    <div class="chart-box tall"><canvas id="chart-requests" role="img" aria-label="Cancellation rate by number of special requests"></canvas></div>
+    <details class="data-view"><summary>Show data</summary><div data-table="requests"></div></details>
+  </article>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script src="{{ url_for('static', filename='js/explore.js') }}"></script>
+{% endblock %}

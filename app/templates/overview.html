@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+{% block content %}
+<section class="hero">
+  <p class="eyebrow">Data preprocessing &amp; feature engineering</p>
+  <h1>{{ "{:,}".format(overview.raw_rows) }} messy bookings <span class="arrow">→</span> {{ "{:,}".format(overview.clean_rows) }} model-ready rows</h1>
+  <p class="lead">Real reservations from two hotels in Portugal, cleaned, de-duplicated, enriched with new features and encoded into a leakage-free matrix for predicting cancellations. Every step runs from the same Python pipeline.</p>
+  <div class="button-row">
+    <a class="button button-primary" href="{{ url_for('explore') }}">Explore the data</a>
+    <a class="button button-secondary" href="{{ url_for('process') }}">Process your own file</a>
+  </div>
+</section>
+
+<section class="section grid grid-4" aria-label="Key numbers">
+  <div class="card stat">
+    <span class="stat-label">Raw bookings</span>
+    <span class="stat-value num">{{ "{:,}".format(overview.raw_rows) }}</span>
+    <span class="stat-note">{{ overview.raw_columns }} columns, 2015–2017</span>
+  </div>
+  <div class="card stat">
+    <span class="stat-label">Model-ready rows</span>
+    <span class="stat-value num">{{ "{:,}".format(overview.clean_rows) }}</span>
+    <span class="stat-note">{{ "{:,}".format(overview.n_train) }} train · {{ "{:,}".format(overview.n_test) }} test</span>
+  </div>
+  <div class="card stat">
+    <span class="stat-label">Missing cells</span>
+    <span class="stat-value num"><span class="from">{{ "{:,}".format(overview.missing_before) }} →</span> 0</span>
+    <span class="stat-note">each column treated by its meaning</span>
+  </div>
+  <div class="card stat">
+    <span class="stat-label">Model features</span>
+    <span class="stat-value num"><span class="from">{{ overview.n_inputs }} →</span> {{ overview.n_outputs }}</span>
+    <span class="stat-note">inputs → columns after encoding</span>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <div>
+      <h2>The pipeline</h2>
+      <p class="muted">One command, <code>python main.py</code>, runs every step below. This app reuses the same code and the saved preprocessor.</p>
+    </div>
+  </div>
+  <ol class="pipeline">
+    <li>
+      <h3>Understand</h3>
+      <p>Types, missing values, duplicates and odd values counted before anything changes.</p>
+      <span class="metric">{{ "{:,}".format(overview.duplicates) }} duplicate rows found</span>
+    </li>
+    <li>
+      <h3>Clean</h3>
+      <p>Invalid rows, exact duplicates, missing values and an extreme price, in a fixed order.</p>
+      <span class="metric">{{ "{:,}".format(overview.raw_rows - overview.clean_rows) }} rows removed</span>
+    </li>
+    <li>
+      <h3>Engineer</h3>
+      <p>Ten new row-wise features such as price per person and a guest's cancellation history.</p>
+      <span class="metric">{{ features.engineered | length }} new features</span>
+    </li>
+    <li>
+      <h3>Explore</h3>
+      <p>Cancellation rates by lead time, season, deposit, segment, country and requests.</p>
+      <span class="metric">11 figures · interactive charts</span>
+    </li>
+    <li>
+      <h3>Select</h3>
+      <p>Leakage, redundancy and near-constant checks on training rows only.</p>
+      <span class="metric">{{ features.dropped | length }} candidates dropped with reasons</span>
+    </li>
+    <li>
+      <h3>Encode &amp; scale</h3>
+      <p>Split first, then fit log + scaling + one-hot encoding on the training set only.</p>
+      <span class="metric">{{ overview.n_outputs }} model-ready columns</span>
+    </li>
+  </ol>
+</section>
+
+<section class="section grid grid-2">
+  <article class="card">
+    <div class="card-head">
+      <h3>The dataset</h3>
+      <p>Hotel booking demand, published by Antonio, Almeida &amp; Nunes in <em>Data in Brief</em> (2019).</p>
+    </div>
+    <dl class="facts">
+      <dt>Hotels</dt>
+      <dd>{% for name, count in overview.hotels.items() %}{{ name }} <span class="num muted">({{ "{:,}".format(count) }})</span>{% if not loop.last %} · {% endif %}{% endfor %}</dd>
+      <dt>Period</dt>
+      <dd>Arrivals July 2015 – August 2017</dd>
+      <dt>Target</dt>
+      <dd><code>is_canceled</code> · {{ overview.cancel_rate_raw }}% raw, {{ overview.cancel_rate_clean }}% after de-duplication</dd>
+      <dt>Why this data</dt>
+      <dd>Structural missing values, a quarter of rows duplicated, impossible values and two columns that leak the answer.</dd>
+      <dt>Source</dt>
+      <dd><a href="https://doi.org/10.1016/j.dib.2018.11.126">doi.org/10.1016/j.dib.2018.11.126</a></dd>
+    </dl>
+  </article>
+  <article class="card">
+    <div class="card-head">
+      <h3>Feature set</h3>
+      <p>{{ features.numeric | length }} numeric, {{ features.binary | length }} binary and {{ features.categorical | length }} categorical inputs.</p>
+    </div>
+    <p class="stat-label spaced">Engineered</p>
+    <div class="chips spaced-lg">
+      {% for name in features.engineered %}<span class="chip chip-accent">{{ name }}</span>{% endfor %}
+    </div>
+    <p class="stat-label spaced">Dropped in selection</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Feature</th><th>Reason</th></tr></thead>
+        <tbody>
+          {% for name, reason in features.dropped.items() %}
+          <tr><td><code>{{ name }}</code></td><td class="wrap">{{ reason }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <div>
+      <h2>Column dictionary</h2>
+      <p class="muted">All {{ overview.raw_columns }} raw columns, as loaded (the mirror's <code>"NULL"</code> text is read as missing).</p>
+    </div>
+    <label class="sr-only" for="column-search">Filter columns</label>
+    <input class="search" id="column-search" type="search" placeholder="Filter columns…" autocomplete="off">
+  </div>
+  <div class="table-wrap scroll-y">
+    <table id="column-table">
+      <thead>
+        <tr><th>Column</th><th>Type</th><th class="num">Missing</th><th>Missing %</th><th class="num">Unique</th><th>Example</th></tr>
+      </thead>
+      <tbody>
+        {% for row in overview.columns %}
+        <tr>
+          <td><code>{{ row.column }}</code></td>
+          <td class="muted">{{ row.dtype }}</td>
+          <td class="num">{{ "{:,}".format(row.missing) }}</td>
+          <td><span class="meter" aria-hidden="true"><span style="width: {{ row.missing_pct }}%"></span></span><span class="num">{{ row.missing_pct }}%</span></td>
+          <td class="num">{{ "{:,}".format(row.n_unique) }}</td>
+          <td class="muted">{{ row.example }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.getElementById("column-search").addEventListener("input", (event) => {
+    const query = event.target.value.trim().toLowerCase();
+    for (const row of document.querySelectorAll("#column-table tbody tr")) {
+      row.hidden = query !== "" && !row.cells[0].textContent.toLowerCase().includes(query);
+    }
+  });
+</script>
+{% endblock %}

@@ -49,6 +49,27 @@ def cancellation_rate_by(df: pd.DataFrame, column: str, order: list | None = Non
     return table.sort_values("bookings", ascending=False)
 
 
+def cancellation_rate_ranked(
+    df: pd.DataFrame, column: str, min_share: float = config.EDA_MIN_GROUP_SHARE
+) -> pd.DataFrame:
+    """Cancellation table sorted from highest to lowest rate, tiny groups removed.
+
+    Groups smaller than ``min_share`` of all bookings are dropped because a rate
+    computed from a handful of rows is noise (e.g. 2 "Undefined" segment rows).
+
+    Args:
+        df: Bookings DataFrame with the target column.
+        column: Category column.
+        min_share: Minimum share of bookings a group needs to be shown.
+
+    Returns:
+        Output of :func:`cancellation_rate_by`, filtered and sorted by rate.
+    """
+    table = cancellation_rate_by(df, column)
+    table = table[table["bookings"] >= len(df) * min_share]
+    return table.sort_values("cancel_rate_pct", ascending=False)
+
+
 def cancellation_by_lead_time(df: pd.DataFrame) -> pd.DataFrame:
     """Cancellation rate per lead-time group (days between booking and arrival).
 
