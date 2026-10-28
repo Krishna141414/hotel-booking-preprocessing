@@ -223,6 +223,8 @@ dataset), so creating them before the train/test split cannot leak test informat
 | 7 | Duplicates were not random | 63.1% canceled, 46.5% Groups vs 27.5% / 5.7% in kept rows | `03_duplicates_profile` |
 
 - **Note on insight 2:** a non-refundable booking that is canceled 94.7% of the time is
-  counter-intuitive. This is a known quirk of this dataset (these are mostly agent/group
-  blocks that were released). It is real data, so it is kept, but worth mentioning when
-  presenting results.
+  counter-intuitive. The data explains it: 63% of these bookings are Groups and 28% Offline
+  TA/TO, 82% come through an agent, 95% are from Portugal and their median lead time is
+  188 days (vs 49 overall). They look like large agent/group allotments booked far ahead
+  and released later, not individual guests losing their money. It is real data, so it is
+  kept, but worth explaining when presenting results.
