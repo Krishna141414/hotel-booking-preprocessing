@@ -24,7 +24,7 @@ from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, StandardSc
 
 from src import config
 from src.cleaning import CleaningResult, clean_data
-from src.features import engineer_features
+from src.features import engineer_features, log_selection_report, validate_selection
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +147,37 @@ def split_data(
         y_test.mean() * 100,
     )
     return x_train, x_test, y_train, y_test
+
+
+def select_features(
+    featured: pd.DataFrame, candidates: FeatureGroups | None = None
+) -> tuple[FeatureGroups, pd.DataFrame]:
+    """Run the selection checks on training rows and apply the documented drops.
+
+    Args:
+        featured: Cleaned + engineered bookings (incl. leakage columns and target).
+        candidates: Candidate groups; defaults to the lists in ``src/config.py``.
+
+    Returns:
+        ``(selected_groups, train_rows)`` - the training rows are returned so
+        callers can plot or inspect exactly what the checks saw.
+
+    Raises:
+        ValueError: If the final selection still contains leakage or redundancy.
+    """
+    candidates = candidates or FeatureGroups.from_config()
+    train_rows, _ = split_frame(featured)
+    log_selection_report(
+        train_rows,
+        candidates.numeric + candidates.binary,
+        candidates.categorical + config.LEAKAGE_COLUMNS,
+    )
+    selected = candidates.without(config.DROPPED_FEATURES)
+    for column, reason in config.DROPPED_FEATURES.items():
+        logger.info("Dropped %-26s %s", column, reason)
+    validate_selection(train_rows, selected.numeric + selected.binary, selected.categorical)
+    logger.info("Selected %d of %d candidate features", len(selected.all), len(candidates.all))
+    return selected, train_rows
 
 
 def choose_log_columns(

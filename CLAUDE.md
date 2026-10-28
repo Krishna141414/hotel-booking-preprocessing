@@ -42,7 +42,7 @@
 | Scaling | `src/pipeline.py` | notebook + decisions.md |
 | Feature engineering | `src/features.py` | notebook + decisions.md |
 | Feature selection | `src/features.py` / notebook | notebook + decisions.md |
-| Meaningful EDA | notebook + `reports/figures/` | notebook + README insights |
+| Meaningful EDA | `src/eda.py`, `src/visualize.py` | notebook + `reports/figures/` + README insights |
 | Documented decisions | `docs/decisions.md` | README summary |
 
 ## Project structure
@@ -58,6 +58,7 @@ src/
   load_data.py
   cleaning.py        # missing, duplicates, outliers, invalid rows
   features.py        # feature engineering + selection helpers
+  eda.py             # EDA aggregations shared by figures + web app
   pipeline.py        # encoding + scaling (ColumnTransformer/Pipeline)
   visualize.py       # shared plotting functions + style
 app/                 # Flask web app (app.py, templates/, static/)
