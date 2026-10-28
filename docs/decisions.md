@@ -187,3 +187,42 @@ dataset), so creating them before the train/test split cannot leak test informat
 - **Why:** Feature engineering only *adds* columns. Deciding which originals become
   redundant (e.g. `arrival_date_week_number` vs `arrival_month_num`) is done with evidence
   in feature selection (section 6), not assumed here.
+
+## 4. Exploratory data analysis (`src/eda.py`, `src/visualize.py`)
+
+### 4.1 EDA runs on the cleaned, de-duplicated data
+- **Why:** Rates computed on the raw file would be dominated by duplicated group blocks
+  (e.g. the cancellation rate would read 37% instead of 27.5%). Data-quality figures
+  (missing values, ADR outliers, duplicates) deliberately use the raw data to show the problems.
+- **Alternative considered:** EDA on raw data. Rejected: it would describe the duplicates,
+  not the bookings.
+
+### 4.2 Cancellation *rates* instead of raw counts
+- **Why:** Groups differ hugely in size (Online TA 51,552 bookings vs Aviation 226), so counts
+  mostly show size. Each rate chart shows the overall rate (27.5%) as a reference line, and
+  categories under 0.1% of bookings (e.g. 2 "Undefined" market-segment rows) are left out
+  of rate charts because a rate from 2 rows is noise.
+
+### 4.3 One shared numbers layer and one shared style
+- **Why:** All aggregations live in `src/eda.py`; the static figures and the web app charts
+  both call it, so the README, notebook and app can never disagree. The style (validated
+  colour-blind-safe palette, hairline grid, headline titles that state the finding) lives in
+  one place in `src/visualize.py`.
+- Every headline was checked against the numbers before saving: two first drafts
+  ("City cancels more in every month", "group bookings cancel most") were wrong and rewritten.
+
+### 4.4 Key insights (cleaned data, 87,208 bookings)
+| # | Insight | Evidence | Figure |
+|---|---|---|---|
+| 1 | Lead time is the clearest driver | 8.4% canceled at 0-7 days vs 40.8% at 365+ days | `05_cancel_by_lead_time` |
+| 2 | Non-refundable deposits cancel the most | 94.7% (1,038 bookings) vs 26.7% for no deposit | `08_cancel_by_deposit_and_segment` |
+| 3 | Online travel agents cancel the most | Online TA 35.4% vs Corporate 12.1%, Direct 14.7% | `08_cancel_by_deposit_and_segment` |
+| 4 | Special requests signal commitment | 33.2% with none vs 5.6% with five | `10_cancel_by_special_requests` |
+| 5 | Domestic guests cancel more | PRT 35.7% vs 18-26% for GBR, FRA, DEU, ESP | `09_top_countries` |
+| 6 | Resort is seasonal, City is not | Resort ADR 49 (Jan) -> 187 (Aug); Resort cancellations peak in summer | `06`, `07` |
+| 7 | Duplicates were not random | 63.1% canceled, 46.5% Groups vs 27.5% / 5.7% in kept rows | `03_duplicates_profile` |
+
+- **Note on insight 2:** a non-refundable booking that is canceled 94.7% of the time is
+  counter-intuitive. This is a known quirk of this dataset (these are mostly agent/group
+  blocks that were released). It is real data, so it is kept, but worth mentioning when
+  presenting results.

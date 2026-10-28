@@ -7,6 +7,7 @@ from src.cleaning import before_after_summary, clean_data, save_clean_data
 from src.download_data import ensure_raw_data
 from src.features import engineer_features
 from src.load_data import load_raw_data, log_data_overview
+from src.visualize import generate_eda_figures
 
 logger = logging.getLogger("main")
 
@@ -29,7 +30,10 @@ def main() -> None:
     save_clean_data(clean_df)
 
     logger.info("=== Step 3: Feature engineering ===")
-    engineer_features(clean_df)
+    featured_df = engineer_features(clean_df)
+
+    logger.info("=== Step 4: EDA figures ===")
+    generate_eda_figures(raw_df, clean_df, featured_df, step_report)
 
     logger.info("Pipeline finished")
 

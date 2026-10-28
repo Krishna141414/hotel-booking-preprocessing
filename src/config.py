@@ -86,6 +86,17 @@ SEASON_BY_MONTH: dict[int, str] = {
     9: "Autumn", 10: "Autumn", 11: "Autumn",
 }  # fmt: skip
 
+# ---------------------------------------------------------------------------
+# EDA
+# ---------------------------------------------------------------------------
+# Lead-time groups in days: same week, month, quarter, half-year, year, longer.
+LEAD_TIME_BINS: list[float] = [-1, 7, 30, 90, 180, 365, float("inf")]
+LEAD_TIME_LABELS: list[str] = ["0-7", "8-30", "31-90", "91-180", "181-365", "365+"]
+TOP_N_COUNTRIES: int = 10
+# Categories smaller than this share of bookings are left out of rate charts (too noisy).
+EDA_MIN_GROUP_SHARE: float = 0.001
+FIGURE_DPI: int = 150
+
 ENGINEERED_FEATURES: list[str] = [
     "total_nights",
     "total_guests",
