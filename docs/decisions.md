@@ -384,7 +384,7 @@ dataset), so creating them before the train/test split cannot leak test informat
 | New data | Reuses the training ADR cap and fitted preprocessor - nothing is re-fitted |
 
 ### 7.3 Tests
-- 82 pytest tests on small hand-made DataFrames (every cleaning, feature, EDA and pipeline
+- 87 pytest tests on small hand-made DataFrames (every cleaning, feature, EDA and pipeline
   function), plus one end-to-end test on real raw rows and download tests that use local
   `file://` URLs instead of the network, and Flask test-client tests for every page and API route.
 - Notable tests: the scaler mean equals the **training** mean (proves fit-on-train-only);
@@ -403,19 +403,37 @@ dataset), so creating them before the train/test split cannot leak test informat
   `prepare_new_bookings`) and shapes the results as JSON. The Explore charts and the static
   figures read the same `src/eda.py` functions, so they cannot disagree.
 
-### 8.3 Pre-computed, light on memory
-- At start-up the app loads the raw CSV once, computes every page payload (~14 KB of JSON in
-  total) and keeps only those plus a 500-row sample. Pages and the chart API do no pandas work
-  per request. Start-up takes ~3 s.
-- **Measured locally:** 172 MB steady, 306 MB peak at start-up, 359 MB peak while processing
-  the full 119,390-row file (6.4 s) - inside a 512 MB free-tier limit.
+### 8.3 Heavy work at build time, never in the web server
+- **What:** `python -m app.build_cache` (also step 7 of `main.py`, and part of the Render build
+  command) loads the full dataset once and writes `app/cache/page_data.json` (19 KB: overview,
+  cleaning summary, chart data for every hotel filter, feature lists) and
+  `app/cache/sample_bookings.csv` (500 raw rows, 70 KB). The server only reads these files and
+  the fitted preprocessor; it never loads the 119,390-row dataset.
+- **Why:** On a 512 MB free host, loading + cleaning the full dataset at start-up was the
+  biggest memory spike (306 MB), and accepting full-dataset uploads pushed the peak to 359 MB.
+- **Kept honest:** the cache files are committed (small, byte-identical on every rebuild) and a
+  test rebuilds the payload and fails if the committed cache is stale.
+- **Alternative considered:** compute at start-up but free the DataFrames afterwards. Still
+  pays the full peak on every restart, and Python rarely returns freed memory to the OS.
+- **Measured locally (Flask dev server, Windows working set):**
+
+  | | Before | After |
+  |---|---:|---:|
+  | Start-up peak | 306 MB | **177 MB** |
+  | Peak under load (all pages + 4 max-size uploads, 3 cached results) | 359 MB | **229 MB** |
+
+  Most of the remaining ~165 MB is simply importing pandas and scikit-learn.
 
 ### 8.4 Uploads reuse the fitted pipeline - nothing is re-fitted
 - An uploaded raw CSV goes through `prepare_new_bookings()`: cleaned with the **training** ADR
   cap (335), features engineered, then `transform`ed by `models/preprocessor.joblib`. Unknown
   categories fall into "infrequent" instead of crashing.
-- **Safety:** only `.csv`, max 30 MB, parsed in memory (never written to disk); clear 400
-  errors for wrong files or missing columns; results kept in a small in-memory store (newest 3 - a full-dataset result is ~40 MB, so this caps memory on a 512 MB host)
+- **Upload limits:** at most **5 MB** (rejected by Flask before reading, HTTP 413) and
+  **20,000 rows** (HTTP 400). Only `max_rows + 1` rows are ever parsed, so an oversized file is
+  rejected without being loaded. A max-size upload processes in ~1 s. Both limits are shown on
+  the page and returned as plain-language errors.
+- **Safety:** only `.csv`, parsed in memory (never written to disk); clear 400 errors for wrong
+  files or missing columns; results kept in a small in-memory store (newest 3, a few MB each)
   behind random tokens; table cells are HTML-escaped.
 - **Trade-off:** in-memory results disappear on restart and are per server process, which is
   why gunicorn runs **1 worker with 4 threads**. Fine for a demo; a real product would use

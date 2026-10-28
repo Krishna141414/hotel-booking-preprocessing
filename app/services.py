@@ -1,17 +1,26 @@
 """Data layer for the web app.
 
 Everything here calls the project's ``src/`` functions - no preprocessing logic
-is duplicated. Page payloads are computed once at start-up and stored as small
-JSON-ready dictionaries, so the server does not keep full DataFrames in memory.
+is duplicated.
+
+Two phases keep the server light on a 512 MB host:
+
+- **Build time** (``python -m app.build_cache``, also run by ``main.py``):
+  :func:`write_cache` loads the full dataset once and saves every page payload as
+  a small JSON file plus a 500-row sample CSV.
+- **Run time**: :func:`load_app_data` only reads those files and the fitted
+  preprocessor. The full dataset is never loaded by the web server.
 """
 
 import io
+import json
 import logging
 import math
 import threading
 import uuid
 from collections import OrderedDict
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -142,7 +151,7 @@ def _records(table: pd.DataFrame) -> list[dict[str, Any]]:
 
 @dataclass
 class AppData:
-    """Everything the pages need, computed once."""
+    """Everything the pages need at run time (small payloads + fitted pipeline)."""
 
     overview: dict[str, Any]
     cleaning: dict[str, Any]
@@ -153,14 +162,15 @@ class AppData:
     metadata: dict[str, Any]
 
 
-def build_app_data() -> AppData:
-    """Load the raw data once and compute every page payload with ``src/`` functions.
+def build_page_payload() -> tuple[dict[str, Any], pd.DataFrame]:
+    """Compute every page payload from the full dataset (build time only).
 
     Returns:
-        The app's data, ready to render.
+        ``(payload, sample)`` - the JSON-ready payload with ``overview``,
+        ``cleaning``, ``eda`` and ``features``, and the raw sample rows.
     """
     raw = load_raw_data()
-    preprocessor, metadata = load_artifacts()
+    _, metadata = load_artifacts()
     cleaned = clean_data(raw)
     featured = engineer_features(cleaned.data)
 
@@ -178,7 +188,7 @@ def build_app_data() -> AppData:
         "n_outputs": len(metadata["output_features"]),
         "n_train": metadata["rows"]["train"],
         "n_test": metadata["rows"]["test"],
-        "hotels": raw["hotel"].value_counts().to_dict(),
+        "hotels": {str(k): int(v) for k, v in raw["hotel"].value_counts().items()},
         "columns": _records(overview_table.astype({"example": str})),
     }
 
@@ -216,9 +226,73 @@ def build_app_data() -> AppData:
         "n_outputs": len(metadata["output_features"]),
         "adr_cap": metadata["adr_cap"],
     }
+    payload = {
+        "overview": overview,
+        "cleaning": cleaning,
+        "eda": eda_payloads,
+        "features": features,
+    }
     sample = raw.sample(config.APP_SAMPLE_ROWS, random_state=config.RANDOM_STATE)
-    logger.info("Web app data ready (%s raw rows summarised)", f"{len(raw):,}")
-    return AppData(overview, cleaning, eda_payloads, features, sample, preprocessor, metadata)
+    return payload, sample
+
+
+def write_cache(
+    cache_path: Path = config.APP_CACHE_PATH, sample_path: Path = config.APP_SAMPLE_PATH
+) -> None:
+    """Build the page payload and save it (JSON) together with the sample rows (CSV).
+
+    Args:
+        cache_path: Output JSON file.
+        sample_path: Output CSV file for the raw sample.
+    """
+    payload, sample = build_page_payload()
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(
+        json.dumps(payload, indent=1, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
+    )
+    sample.to_csv(sample_path, index=False, lineterminator="\n")
+    logger.info(
+        "Web app cache written: %s (%.0f KB), %s (%.0f KB)",
+        cache_path.name,
+        cache_path.stat().st_size / 1024,
+        sample_path.name,
+        sample_path.stat().st_size / 1024,
+    )
+
+
+def load_app_data(
+    cache_path: Path = config.APP_CACHE_PATH, sample_path: Path = config.APP_SAMPLE_PATH
+) -> AppData:
+    """Load the pre-computed page data and the fitted pipeline (run time, lightweight).
+
+    Args:
+        cache_path: JSON written by :func:`write_cache`.
+        sample_path: Sample CSV written by :func:`write_cache`.
+
+    Returns:
+        The app's data, ready to render.
+
+    Raises:
+        FileNotFoundError: If the cache has not been built.
+    """
+    for path in (cache_path, sample_path):
+        if not path.exists():
+            raise FileNotFoundError(
+                f"{path.name} not found - run `python -m app.build_cache` (or `python main.py`)."
+            )
+    payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    sample = pd.read_csv(sample_path, na_values=config.MISSING_TOKENS, low_memory=False)
+    preprocessor, metadata = load_artifacts()
+    logger.info("Web app data loaded from cache (%s)", cache_path.name)
+    return AppData(
+        overview=payload["overview"],
+        cleaning=payload["cleaning"],
+        eda=payload["eda"],
+        features=payload["features"],
+        sample_raw=sample,
+        preprocessor=preprocessor,
+        metadata=metadata,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -276,24 +350,39 @@ class ResultStore:
             return self._items.get(token)
 
 
-def read_uploaded_csv(content: bytes) -> pd.DataFrame:
+def read_uploaded_csv(content: bytes, max_rows: int = config.APP_MAX_UPLOAD_ROWS) -> pd.DataFrame:
     """Parse an uploaded CSV with the same missing-value rules as the raw data.
+
+    At most ``max_rows + 1`` rows are parsed, so an oversized file is rejected
+    without ever being fully loaded into memory.
 
     Args:
         content: Raw bytes of the uploaded file.
+        max_rows: Largest accepted number of data rows.
 
     Returns:
         The parsed DataFrame.
 
     Raises:
-        ValueError: If the file is empty or not a readable CSV.
+        ValueError: If the file is empty, not a readable CSV, or has too many rows.
     """
     if not content.strip():
         raise ValueError("The file is empty.")
     try:
-        return pd.read_csv(io.BytesIO(content), na_values=config.MISSING_TOKENS, low_memory=False)
+        frame = pd.read_csv(
+            io.BytesIO(content),
+            na_values=config.MISSING_TOKENS,
+            low_memory=False,
+            nrows=max_rows + 1,
+        )
     except (pd.errors.ParserError, UnicodeDecodeError) as error:
         raise ValueError(f"Could not read the file as CSV ({error}).") from error
+    if len(frame) > max_rows:
+        raise ValueError(
+            f"The file has more than {max_rows:,} rows. Upload at most {max_rows:,} bookings "
+            "at a time; split larger files (the full dataset is processed by main.py)."
+        )
+    return frame
 
 
 def process_bookings(raw: pd.DataFrame, data: AppData, name: str) -> ProcessedFile:

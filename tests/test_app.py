@@ -1,6 +1,8 @@
 """Tests for the Flask web app (pages, API, uploads, downloads)."""
 
 import io
+import json
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -8,14 +10,14 @@ from flask import Flask
 from flask.testing import FlaskClient
 
 from app.app import create_app
-from app.services import AppData, ResultStore, build_app_data
+from app.services import AppData, ResultStore, build_page_payload, load_app_data, read_uploaded_csv
 from src import config
 
 
 @pytest.fixture(scope="module")
 def app_data() -> AppData:
-    """Build the real app data once for all tests in this module."""
-    return build_app_data()
+    """Load the app data from the pre-computed cache, exactly as the server does."""
+    return load_app_data()
 
 
 @pytest.fixture(scope="module")
@@ -146,3 +148,45 @@ def test_result_store_evicts_oldest() -> None:
     ]
     assert store.get(tokens[0]) is None
     assert store.get(tokens[2]) is not None
+
+
+def test_cache_matches_a_fresh_build() -> None:
+    """The committed cache equals what the current code computes (no stale numbers)."""
+    payload, sample = build_page_payload()
+    cached = json.loads(config.APP_CACHE_PATH.read_text(encoding="utf-8"))
+    assert json.loads(json.dumps(payload, sort_keys=True)) == cached
+    assert len(sample) == config.APP_SAMPLE_ROWS
+
+
+def test_missing_cache_gives_clear_error(tmp_path: Path) -> None:
+    """Starting without a cache explains how to build it."""
+    with pytest.raises(FileNotFoundError, match="app.build_cache"):
+        load_app_data(tmp_path / "page_data.json", tmp_path / "sample.csv")
+
+
+def test_read_uploaded_csv_rejects_too_many_rows() -> None:
+    """Files above the row limit are rejected with the limit in the message."""
+    csv = "a,b\n" + "1,2\n" * 11
+    with pytest.raises(ValueError, match="more than 10 rows"):
+        read_uploaded_csv(csv.encode(), max_rows=10)
+    assert len(read_uploaded_csv(csv.encode(), max_rows=11)) == 11
+
+
+def test_upload_above_size_limit_is_rejected(client: FlaskClient) -> None:
+    """A file above the MB limit gets a 413 with a readable message."""
+    big = b"x" * (config.APP_MAX_UPLOAD_MB * 1024 * 1024 + 1)
+    response = client.post("/api/process", data={"file": (io.BytesIO(big), "big.csv")})
+    assert response.status_code == 413
+    assert f"{config.APP_MAX_UPLOAD_MB} MB" in response.get_json()["error"]
+
+
+def test_upload_above_row_limit_is_rejected(client: FlaskClient, app_data: AppData) -> None:
+    """A file with too many rows gets a 400 explaining the row limit."""
+    rows = config.APP_MAX_UPLOAD_ROWS + 1
+    reps = rows // len(app_data.sample_raw) + 1
+    frame = pd.concat([app_data.sample_raw] * reps).head(rows)
+    response = client.post(
+        "/api/process", data={"file": (io.BytesIO(frame.to_csv(index=False).encode()), "big.csv")}
+    )
+    assert response.status_code == 400
+    assert f"{config.APP_MAX_UPLOAD_ROWS:,} rows" in response.get_json()["error"]

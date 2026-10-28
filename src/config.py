@@ -215,9 +215,14 @@ DROPPED_FEATURES: dict[str, str] = {
 # Web app
 # ---------------------------------------------------------------------------
 APP_SAMPLE_ROWS: int = 500  # raw rows offered as a downloadable sample
-APP_MAX_UPLOAD_MB: int = 30  # the full raw dataset is ~17 MB
-# Processed uploads kept in memory for download. A full-dataset result is ~40 MB, so
-# 3 keeps the worst case well under a 512 MB free-hosting limit.
+# Upload limits keep each request small on a 512 MB host (20,000 raw rows is ~3 MB).
+APP_MAX_UPLOAD_MB: int = 5
+APP_MAX_UPLOAD_ROWS: int = 20_000
+# Pre-computed page data, built by `python -m app.build_cache` (and by main.py).
+APP_CACHE_DIR: Path = PROJECT_ROOT / "app" / "cache"
+APP_CACHE_PATH: Path = APP_CACHE_DIR / "page_data.json"
+APP_SAMPLE_PATH: Path = APP_CACHE_DIR / "sample_bookings.csv"
+# Processed uploads kept in memory for download (a max-size result is a few MB).
 APP_RESULT_CACHE_SIZE: int = 3
 APP_PREVIEW_ROWS: int = 6
 APP_HOTEL_FILTERS: list[str] = ["All hotels", "City Hotel", "Resort Hotel"]

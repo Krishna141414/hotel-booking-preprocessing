@@ -4,7 +4,7 @@ Turning 119,390 real hotel bookings into clean, leakage-free, model-ready data, 
 decision explained.
 
 ![Python](https://img.shields.io/badge/python-3.14-3776AB)
-![Tests](https://img.shields.io/badge/tests-82%20passing-2a78d6)
+![Tests](https://img.shields.io/badge/tests-87%20passing-2a78d6)
 ![Lint](https://img.shields.io/badge/lint-ruff-eb6834)
 
 > **Live web app:** _coming soon - deployed in a later step_
@@ -154,10 +154,12 @@ no preprocessing logic is duplicated.
 | **Overview** `/` | Key numbers, the six pipeline steps, dataset facts, engineered and dropped features, a searchable column dictionary |
 | **Cleaning** `/cleaning` | Before vs after table, rows removed per step, the 10 steps with rows removed / values fixed and why, the duplicates trade-off, ADR before/after |
 | **Explore** `/explore` | 7 interactive charts with a hotel filter (All / City / Resort), hover tooltips, an overall-rate reference line and a "Show data" table under each chart |
-| **Process data** `/process` | Upload a raw CSV (or try a 500-row sample) -> cleaned with the training ADR cap, features engineered, transformed by `preprocessor.joblib` -> download the model-ready CSV and the cleaned CSV |
+| **Process data** `/process` | Upload a raw CSV (up to 20,000 rows / 5 MB) or try a 500-row sample -> cleaned with the training ADR cap, features engineered, transformed by `preprocessor.joblib` -> download the model-ready CSV and the cleaned CSV |
 
-Uploading the full raw file through the app gives exactly the same result as `python main.py`
-(119,390 -> 87,208 rows, 0 missing, 86 features + target).
+**Built for a 512 MB free host:** all page data is pre-computed at build time
+(`python -m app.build_cache`, also run by `main.py`) into `app/cache/` (~90 KB), so the server
+never loads the full dataset. Measured peak memory: **177 MB** at start-up, **229 MB** under
+load with maximum-size uploads.
 
 ## Final features
 
@@ -189,9 +191,10 @@ pip install -r requirements-dev.txt
 |---|---|
 | `python main.py` | Full pipeline: raw CSV -> clean -> features -> figures -> selection -> model-ready data (~10 s) |
 | `python main.py --skip-figures` | Same, without regenerating figures |
-| `pytest` | Run the 82 tests |
+| `pytest` | Run the 87 tests |
 | `ruff format --check . && ruff check .` | Formatting and lint checks |
 | `jupyter nbconvert --execute --inplace notebooks/eda.ipynb` | Re-run the walkthrough notebook |
+| `python -m app.build_cache` | Rebuild the web app's pre-computed page data (`main.py` does this too) |
 | `flask --app app.app run` | Start the web app at http://127.0.0.1:5000 |
 | `gunicorn app.app:app` | Production server (Linux/macOS; settings in `gunicorn.conf.py`) |
 
@@ -216,7 +219,9 @@ notebooks/eda.ipynb     walkthrough, runs top to bottom with saved outputs
 reports/figures/        11 EDA figures
 app/
   app.py                Flask routes (pages, JSON API, downloads)
-  services.py           calls src/ and shapes results for the pages
+  services.py           calls src/; build-time cache + run-time loader
+  build_cache.py        `python -m app.build_cache` - pre-computes page data
+  cache/                page_data.json + sample_bookings.csv (small, committed)
   templates/            Jinja templates (overview, cleaning, explore, process)
   static/               CSS design system + JavaScript (charts, theme, upload)
 src/
@@ -228,7 +233,7 @@ src/
   eda.py                EDA aggregations (shared by figures and web app)
   pipeline.py           split, encoding + scaling, saved artifacts, new-data transform
   visualize.py          shared plot style and figures
-tests/                  pytest suite (82 tests)
+tests/                  pytest suite (87 tests)
 main.py                 runs the whole pipeline
 gunicorn.conf.py        production server settings
 render.yaml, Procfile    deployment config (Render / any Procfile host)

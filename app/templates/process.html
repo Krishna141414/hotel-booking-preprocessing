@@ -14,7 +14,7 @@
         <input id="file-input" name="file" type="file" accept=".csv,text/csv">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="muted"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
         <span class="file-name" id="file-name">Drop a CSV here or click to browse</span>
-        <span class="stat-note">Raw format: the dataset's 32 columns · <code>is_canceled</code> optional · max {{ max_mb }} MB</span>
+        <span class="stat-note">Raw format: the dataset's 32 columns · <code>is_canceled</code> optional · up to {{ "{:,}".format(max_rows) }} rows / {{ max_mb }} MB</span>
       </label>
       <div class="button-row note">
         <button class="button button-primary" type="submit" id="process-button">Process file</button>

@@ -4,7 +4,8 @@ services:
     name: hotelprep
     runtime: python
     plan: free
-    buildCommand: pip install -r requirements.txt
+    # Pre-compute page data at build time so the server never loads the full dataset.
+    buildCommand: pip install -r requirements.txt && python -m app.build_cache
     startCommand: gunicorn app.app:app
     healthCheckPath: /healthz
     envVars:

@@ -1,7 +1,8 @@
 """Run the whole preprocessing pipeline, raw CSV -> model-ready data: ``python main.py``.
 
 Steps: download (if needed) -> understand -> clean -> engineer features ->
-EDA figures -> select features -> encode + scale (fit on train only) -> save.
+EDA figures -> select features -> encode + scale (fit on train only) -> save ->
+web app cache.
 """
 
 import argparse
@@ -10,6 +11,7 @@ import time
 
 import pandas as pd
 
+from app.services import write_cache
 from src import config
 from src.cleaning import before_after_summary, clean_data, save_clean_data
 from src.download_data import ensure_raw_data
@@ -101,6 +103,9 @@ def main() -> None:
     result = fit_preprocessing(featured_df, selected, adr_cap, dropped=config.DROPPED_FEATURES)
     save_artifacts(result)
     save_model_ready(result)
+
+    step(7, "Web app cache (pre-computed page data)")
+    write_cache()
 
     n_train, n_test = result.metadata["rows"]["train"], result.metadata["rows"]["test"]
     log_summary(

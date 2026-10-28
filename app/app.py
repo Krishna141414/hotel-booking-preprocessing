@@ -12,7 +12,7 @@ import pandas as pd
 from flask import Flask, Response, abort, jsonify, render_template, request
 from werkzeug.exceptions import RequestEntityTooLarge
 
-from app.services import AppData, ResultStore, build_app_data, process_bookings, read_uploaded_csv
+from app.services import AppData, ResultStore, load_app_data, process_bookings, read_uploaded_csv
 from src import config
 
 logger = logging.getLogger(__name__)
@@ -60,7 +60,7 @@ def create_app(data: AppData | None = None) -> Flask:
     """Create the Flask app.
 
     Args:
-        data: Pre-built app data (tests pass their own); built from the dataset if ``None``.
+        data: Pre-built app data (tests pass their own); loaded from the cache if ``None``.
 
     Returns:
         The configured Flask application.
@@ -68,7 +68,7 @@ def create_app(data: AppData | None = None) -> Flask:
     config.setup_logging()
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = config.APP_MAX_UPLOAD_MB * 1024 * 1024
-    data = data or build_app_data()
+    data = data or load_app_data()
     results = ResultStore()
 
     @app.context_processor
@@ -101,6 +101,7 @@ def create_app(data: AppData | None = None) -> Flask:
             features=data.features,
             sample_rows=config.APP_SAMPLE_ROWS,
             max_mb=config.APP_MAX_UPLOAD_MB,
+            max_rows=config.APP_MAX_UPLOAD_ROWS,
         )
 
     # -- API ------------------------------------------------------------------
