@@ -24,3 +24,7 @@ desktop.ini
 
 # Logs
 *.log
+
+# Generated data (recreated by `python main.py`)
+data/processed/*
+!data/processed/.gitkeep

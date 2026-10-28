@@ -16,6 +16,7 @@ DATA_DIR: Path = PROJECT_ROOT / "data"
 RAW_DATA_DIR: Path = DATA_DIR / "raw"
 PROCESSED_DATA_DIR: Path = DATA_DIR / "processed"
 RAW_DATA_PATH: Path = RAW_DATA_DIR / "hotel_bookings.csv"
+CLEAN_DATA_PATH: Path = PROCESSED_DATA_DIR / "hotel_bookings_clean.csv"
 
 MODELS_DIR: Path = PROJECT_ROOT / "models"
 FIGURES_DIR: Path = PROJECT_ROOT / "reports" / "figures"
@@ -47,6 +48,29 @@ LEAKAGE_COLUMNS: list[str] = ["reservation_status", "reservation_status_date"]
 
 # Numeric IDs that are really categories (agent #9 is not "bigger" than agent #1).
 ID_AS_CATEGORY_COLUMNS: list[str] = ["agent", "company"]
+
+GUEST_COLUMNS: list[str] = ["adults", "children", "babies"]
+
+# ---------------------------------------------------------------------------
+# Cleaning rules (reasoning in docs/decisions.md, section 2)
+# ---------------------------------------------------------------------------
+# Agent IDs start at 1, so 0 is a safe "booked without an agent" code.
+NO_AGENT_ID: int = 0
+UNKNOWN_COUNTRY: str = "Unknown"
+# Per the dataset paper, "Undefined" and "SC" both mean no meal package.
+MEAL_REPLACEMENTS: dict[str, str] = {"Undefined": "SC"}
+
+# Highest value seen in a meaningful number of bookings, just before a clear gap
+# in the frequency table (e.g. babies: 0, 1, 2, then 9 and 10). Above = entry error.
+MAX_PLAUSIBLE_COUNTS: dict[str, int] = {
+    "adults": 4,
+    "children": 3,
+    "babies": 2,
+    "required_car_parking_spaces": 3,
+}
+
+# ADR above this quantile is capped (winsorised) to the quantile value.
+ADR_CAP_QUANTILE: float = 0.999
 
 # ---------------------------------------------------------------------------
 # Reproducibility

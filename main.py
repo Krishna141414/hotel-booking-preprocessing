@@ -3,6 +3,7 @@
 import logging
 
 from src import config
+from src.cleaning import before_after_summary, clean_data, save_clean_data
 from src.download_data import ensure_raw_data
 from src.load_data import load_raw_data, log_data_overview
 
@@ -19,6 +20,12 @@ def main() -> None:
     logger.info("=== Step 1: Data understanding ===")
     raw_df = load_raw_data(raw_path)
     log_data_overview(raw_df)
+
+    logger.info("=== Step 2: Cleaning ===")
+    clean_df, step_report = clean_data(raw_df)
+    logger.info("Cleaning steps:\n%s", step_report.to_string())
+    logger.info("Before vs after:\n%s", before_after_summary(raw_df, clean_df).to_string())
+    save_clean_data(clean_df)
 
     logger.info("Pipeline finished")
 

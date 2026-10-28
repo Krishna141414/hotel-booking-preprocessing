@@ -9,8 +9,6 @@ from src import config
 
 logger = logging.getLogger(__name__)
 
-GUEST_COLUMNS: list[str] = ["adults", "children", "babies"]
-
 
 def load_raw_data(path: Path = config.RAW_DATA_PATH) -> pd.DataFrame:
     """Read the raw CSV, treating the mirror's ``"NULL"`` strings as missing.
@@ -83,12 +81,12 @@ def data_quality_snapshot(df: pd.DataFrame) -> dict[str, float]:
     Raises:
         ValueError: If a required column is missing.
     """
-    required = [*GUEST_COLUMNS, "adr", config.TARGET]
+    required = [*config.GUEST_COLUMNS, "adr", config.TARGET]
     missing_columns = [col for col in required if col not in df.columns]
     if missing_columns:
         raise ValueError(f"Missing required columns: {missing_columns}")
 
-    total_guests = df[GUEST_COLUMNS].sum(axis=1, min_count=1)
+    total_guests = df[config.GUEST_COLUMNS].sum(axis=1, min_count=1)
     return {
         "rows": len(df),
         "duplicate_rows": int(df.duplicated().sum()),
